@@ -9,9 +9,9 @@
 | Step | Artifact | Status | Timestamp | Notes |
 |------|----------|--------|-----------|-------|
 | 1 | PRD.md | `loaded` | 2026-05-20 00:04 | 从 symlink 加载 |
-| 2 | PRD Quality Check | `pending` | — | 即将开始 |
+| 2 | PRD Quality Check | `confirmed` | 2026-05-20 00:10 | TBD-001 已澄清，PRD 质量通过 |
 | 3 | Constitution | `confirmed` | 2026-05-20 00:03 | v0.2，已更新 |
-| 4 | Plan.md (MVP + Stories) | `pending` | — | — |
+| 4 | Plan.md (MVP + Stories) | `pending` | — | 即将开始 |
 | 5 | Tasks.md (Story → Task) | `pending` | — | — |
 | 6 | Consistency Review | `pending` | — | — |
 | 7 | Implementation | `pending` | — | — |
@@ -97,3 +97,25 @@ quant-data/
 | Timestamp | Story Progress | Repeat Count | Event |
 |-----------|---------------|--------------|-------|
 | — | — | — | — |
+---
+
+## Step 2 — PRD Quality Check
+
+### TBD List
+
+| ID | Section | Issue | Clarification Question | Status |
+|----|---------|-------|------------------------|--------|
+| TBD-001 | 7.6 运行环境 | pydantic 未列入依赖 | Constitution 1.3 类型安全要求 pydantic model，但 PRD 依赖列表未包含 | ✅ **已澄清**：用户确认 pydantic 单独列依赖 |
+
+**Clarification Rounds:**
+
+| Round | Date | TBD Count | Resolved | Remaining | Next Action |
+|-------|------|-----------|----------|-----------|------------|
+| 1 | 2026-05-20 00:10 | 1 | 1 | 0 | ✅ PRD 质量检查通过 |
+
+**结论：** 
+- PRD 整体质量可接受（架构清晰、需求完整、验收标准明确）
+- 唯一 TBD-001 已澄清：pydantic 列为独立依赖
+- PRD 源文件已更新（`/root/secureshare/files/ETF轮动分析框架/PRD_数据采集系统.md` 第 489 行）
+- Step 2 → `confirmed`，进入 Step 3
+
