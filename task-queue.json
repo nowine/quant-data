@@ -1,0 +1,10 @@
+{
+  "tasks": [],
+  "config": {
+    "max_concurrent": 1,
+    "max_retries": 3,
+    "timeout_seconds": 3600,
+    "heartbeat_interval_ms": 1800000,
+    "sub_agent_label_prefix": "sdd-story"
+  }
+}
