@@ -1,7 +1,7 @@
 # Plan.md — ETF 数据采集系统
 
 > SDD Development Plan | 基于 PRD + Constitution v0.2
-> 版本：1.0-draft | 2026-05-20
+> 版本：1.0 | 2026-05-21 | 已交付
 
 ---
 
@@ -303,19 +303,19 @@
 
 | Story | MVP | Title | Status | Commits |
 |-------|-----|-------|--------|---------|
-| Story-001 | MVP-001 | 配置中心 config.py | `pending` | — |
-| Story-002 | MVP-001 | 日志与告警 logger.py | `pending` | — |
-| Story-003 | MVP-001 | 文件存储 storage.py | `pending` | — |
-| Story-004 | MVP-001 | 数据质量校验 validator.py | `pending` | — |
-| Story-005 | MVP-001 | AkShare 封装 akshare_client.py | `pending` | — |
-| Story-006 | MVP-001 | 天天基金 API 封装 ttfund_client.py | `pending` | — |
-| Story-007 | MVP-002 | 日度采集 collector_daily.py | `pending` | — |
-| Story-008 | MVP-003 | 周度采集 collector_weekly.py | `pending` | — |
-| Story-009 | MVP-003 | 月度采集 collector_monthly.py | `pending` | — |
-| Story-010 | MVP-003 | 季度采集 collector_quarterly.py | `pending` | — |
-| Story-011 | MVP-004 | 容器化基础 | `pending` | — |
-| Story-012 | MVP-004 | Cron 配置 | `pending` | — |
-| Story-013 | MVP-004 | 文档与验收 | `pending` | — |
+| Story-001 | MVP-001 | 配置中心 config.py | `done` | — |
+| Story-002 | MVP-001 | 日志与告警 logger.py | `done` | — |
+| Story-003 | MVP-001 | 文件存储 storage.py | `done` | — |
+| Story-004 | MVP-001 | 数据质量校验 validator.py | `done` | — |
+| Story-005 | MVP-001 | AkShare 封装 akshare_client.py | `done` | — |
+| Story-006 | MVP-001 | 天天基金 API 封装 ttfund_client.py | `done` | — |
+| Story-007 | MVP-002 | 日度采集 collector_daily.py | `done` | — |
+| Story-008 | MVP-003 | 周度采集 collector_weekly.py | `done` | — |
+| Story-009 | MVP-003 | 月度采集 collector_monthly.py | `done` | — |
+| Story-010 | MVP-003 | 季度采集 collector_quarterly.py | `done` | — |
+| Story-011 | MVP-004 | 容器化基础 | `done` | — |
+| Story-012 | MVP-004 | Cron 配置 | `done` | — |
+| Story-013 | MVP-004 | 文档与验收 | `done` | — |
 
 ---
 
@@ -323,7 +323,7 @@
 
 | MVP | Title | Stories | Status |
 |-----|-------|---------|--------|
-| MVP-001 | 公共基础模块 | Story-001 ~ 006 | `pending` |
-| MVP-002 | 日度采集脚本 | Story-007 | `pending` |
-| MVP-003 | 周/月/季度采集脚本 | Story-008 ~ 010 | `pending` |
-| MVP-004 | 容器化与部署 | Story-011 ~ 013 | `pending` |
+| MVP-001 | 公共基础模块 | Story-001 ~ 006 | `done` |
+| MVP-002 | 日度采集脚本 | Story-007 | `done` |
+| MVP-003 | 周/月/季度采集脚本 | Story-008 ~ 010 | `done` |
+| MVP-004 | 容器化与部署 | Story-011 ~ 013 | `done` |

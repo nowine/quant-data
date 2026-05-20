@@ -1,7 +1,7 @@
 # Tasks.md — ETF 数据采集系统
 
 > Story → Task 拆分 | 基于 Plan.md v1.0-draft
-> 版本：1.0-draft | 2026-05-20
+> 版本：1.0 | 2026-05-21 | 已交付
 
 ---
 
@@ -51,7 +51,7 @@
 ## MVP-001: 公共基础模块
 
 ### Story-001: 配置中心 config.py
-**Status:** `pending` | **Story ID:** Story-001
+**Status:** `done` | **Story ID:** Story-001
 
 ---
 
@@ -60,7 +60,7 @@
 **Completed At:** 2026-05-20 15:08
 
 **Story:** Story-001
-**Status:** `pending`
+**Status:** `done`
 **Type:** `feat`
 **Module:** `src/config.py`
 
@@ -111,7 +111,7 @@ def test_data_dir_correct():
 ## Task: TASK-102 — CACHE_TTL 和 VALIDATION_RULES
 
 **Story:** Story-001
-**Status:** `pending`
+**Status:** `done`
 **Type:** `feat`
 **Module:** `src/config.py`
 
@@ -149,7 +149,7 @@ def test_validation_rules_has_required_keys():
 ## Task: TASK-103 — requirements.txt 初始化
 
 **Story:** Story-001
-**Status:** `pending`
+**Status:** `done`
 **Type:** `config`
 **Module:** `requirements.txt`
 
@@ -177,7 +177,7 @@ ruff>=0.4.0
 ## Task: TASK-201 — logger.py 基础结构
 
 **Story:** Story-002
-**Status:** `pending`
+**Status:** `done`
 **Type:** `feat`
 **Module:** `src/logger.py`
 
@@ -217,7 +217,7 @@ def test_run_id_is_unique():
 ## Task: TASK-204 — alert() 函数
 
 **Story:** Story-002
-**Status:** `pending`
+**Status:** `done`
 **Type:** `feat`
 **Module:** `src/logger.py`
 
@@ -247,7 +247,7 @@ def test_alert_writes_csv(tmp_path, monkeypatch):
 ## Task: TASK-301 — storage.py save_csv / load_csv
 
 **Story:** Story-003
-**Status:** `pending`
+**Status:** `done`
 **Type:** `feat`
 **Module:** `src/storage.py`
 
@@ -284,7 +284,7 @@ def test_save_csv_no_bom(tmp_path):
 ## Task: TASK-302 — storage.py save_json / load_json
 
 **Story:** Story-003
-**Status:** `pending`
+**Status:** `done`
 **Type:** `feat`
 **Module:** `src/storage.py`
 
@@ -310,7 +310,7 @@ def test_save_and_load_json(tmp_path):
 ## Task: TASK-303 — storage.py partial rerun 核心逻辑
 
 **Story:** Story-003
-**Status:** `pending`
+**Status:** `done`
 **Type:** `feat`
 **Module:** `src/storage.py`
 
@@ -357,7 +357,7 @@ def test_collect_if_missing_fetch_and_save(tmp_path, monkeypatch):
 ## Task: TASK-401 — validator.py ValidationResult + 空值/范围校验
 
 **Story:** Story-004
-**Status:** `pending`
+**Status:** `done`
 **Type:** `feat`
 **Module:** `src/validator.py`
 
@@ -414,7 +414,7 @@ def test_check_stale_old(tmp_path):
 ## Task: TASK-501 — akshare_client.py 基础 + _with_cache
 
 **Story:** Story-005
-**Status:** `pending`
+**Status:** `done`
 **Type:** `feat`
 **Module:** `src/akshare_client.py`
 
@@ -462,7 +462,7 @@ def test_with_cache_miss(monkeypatch, tmp_path):
 ## Task: TASK-502 — akshare_client.py 行情接口
 
 **Story:** Story-005
-**Status:** `pending`
+**Status:** `done`
 **Type:** `feat`
 **Module:** `src/akshare_client.py`
 
@@ -492,7 +492,7 @@ def test_get_etf_history_fallback(monkeypatch):
 ## Task: TASK-503 — akshare_client.py 宏观接口
 
 **Story:** Story-005
-**Status:** `pending`
+**Status:** `done`
 **Type:** `feat`
 **Module:** `src/akshare_client.py`
 
@@ -524,7 +524,7 @@ def test_get_pmi_returns_dataframe(monkeypatch):
 ## Task: TASK-601 — ttfund_client.py 基础结构
 
 **Story:** Story-006
-**Status:** `pending`
+**Status:** `done`
 **Type:** `feat`
 **Module:** `src/ttfund_client.py`
 
@@ -557,7 +557,7 @@ def test_api_call_interval(monkeypatch):
 ## Task: TASK-602 — ttfund_client.py 8 个接口封装
 
 **Story:** Story-006
-**Status:** `pending`
+**Status:** `done`
 **Type:** `feat`
 **Module:** `src/ttfund_client.py`
 
@@ -612,26 +612,26 @@ def test_get_nav_history_returns_dataframe(monkeypatch):
 
 | Story | Tasks | Status |
 |-------|-------|--------|
-| Story-001 | TASK-101, TASK-102, TASK-103 | `pending` |
-| Story-002 | TASK-201, TASK-204 | `pending` |
-| Story-003 | TASK-301, TASK-302, TASK-303 | `pending` |
-| Story-004 | TASK-401 | `pending` |
-| Story-005 | TASK-501, TASK-502, TASK-503 | `pending` |
-| Story-006 | TASK-601, TASK-602 | `pending` |
-| Story-007 | TASK-701~71x | `pending` |
-| Story-008 | TASK-801~80x | `pending` |
-| Story-009 | TASK-901~90x | `pending` |
-| Story-010 | TASK-1001~100x | `pending` |
-| Story-011 | TASK-1101 | `pending` |
-| Story-012 | TASK-1201 | `pending` |
-| Story-013 | TASK-1301 | `pending` |
+| Story-001 | TASK-101, TASK-102, TASK-103 | `done` |
+| Story-002 | TASK-201, TASK-204 | `done` |
+| Story-003 | TASK-301, TASK-302, TASK-303 | `done` |
+| Story-004 | TASK-401 | `done` |
+| Story-005 | TASK-501, TASK-502, TASK-503 | `done` |
+| Story-006 | TASK-601, TASK-602 | `done` |
+| Story-007 | TASK-701 | `done` |
+| Story-008 | TASK-801 | `done` |
+| Story-009 | TASK-901 | `done` |
+| Story-010 | TASK-1001 | `done` |
+| Story-011 | TASK-1101 | `done` |
+| Story-012 | TASK-1201 | `done` |
+| Story-013 | TASK-1301 | `done` |
 ---
 
 ## Story-007: 日度采集 collector_daily.py
-**Status:** `pending` | **Story ID:** Story-007
+**Status:** `done` | **Story ID:** Story-007
 
 ### Task: TASK-701 — collector_daily.py 主脚本
-**Story:** Story-007 | **Status:** `pending` | **Type:** `feat` | **Module:** `src/collector_daily.py`
+**Story:** Story-007 | **Status:** `done` | **Type:** `feat` | **Module:** `src/collector_daily.py`
 
 #### Functionality
 创建 `collector_daily.py`，支持两种运行模式：
@@ -696,10 +696,10 @@ def test_collector_daily_holiday_skip(monkeypatch):
 ---
 
 ## Story-008: 周度采集 collector_weekly.py
-**Status:** `pending` | **Story ID:** Story-008
+**Status:** `done` | **Story ID:** Story-008
 
 ### Task: TASK-801 — collector_weekly.py 主脚本
-**Story:** Story-008 | **Status:** `pending` | **Type:** `feat` | **Module:** `src/collector_weekly.py`
+**Story:** Story-008 | **Status:** `done` | **Type:** `feat` | **Module:** `src/collector_weekly.py`
 
 #### Functionality
 创建 `collector_weekly.py`，运行时间：每周日 20:00
@@ -740,10 +740,10 @@ def test_collector_weekly_partial_rerun(monkeypatch, tmp_path):
 ---
 
 ## Story-009: 月度采集 collector_monthly.py
-**Status:** `pending` | **Story ID:** Story-009
+**Status:** `done` | **Story ID:** Story-009
 
 ### Task: TASK-901 — collector_monthly.py 主脚本
-**Story:** Story-009 | **Status:** `pending` | **Type:** `feat` | **Module:** `src/collector_monthly.py`
+**Story:** Story-009 | **Status:** `done` | **Type:** `feat` | **Module:** `src/collector_monthly.py`
 
 #### Functionality
 创建 `collector_monthly.py`，运行时间：每月1日 02:00
@@ -793,10 +793,10 @@ def test_collector_monthly_runs_all_sources(monkeypatch, tmp_path):
 ---
 
 ## Story-010: 季度采集 collector_quarterly.py
-**Status:** `pending` | **Story ID:** Story-010
+**Status:** `done` | **Story ID:** Story-010
 
 ### Task: TASK-1001 — collector_quarterly.py 主脚本
-**Story:** Story-010 | **Status:** `pending` | **Type:** `feat` | **Module:** `src/collector_quarterly.py`
+**Story:** Story-010 | **Status:** `done` | **Type:** `feat` | **Module:** `src/collector_quarterly.py`
 
 #### Functionality
 创建 `collector_quarterly.py`，运行时间：每季初1日 03:00
@@ -835,10 +835,10 @@ def test_collector_quarterly_runs_all_sources(monkeypatch, tmp_path):
 ---
 
 ## Story-011: 容器化部署
-**Status:** `pending` | **Story ID:** Story-011
+**Status:** `done` | **Story ID:** Story-011
 
 ### Task: TASK-1101 — Dockerfile + docker-compose
-**Story:** Story-011 | **Status:** `pending` | **Type:** `feat` | **Module:** `Dockerfile`, `docker-compose.yml`
+**Story:** Story-011 | **Status:** `done` | **Type:** `feat` | **Module:** `Dockerfile`, `docker-compose.yml`
 
 #### Functionality
 1. **Dockerfile** — 多阶段构建
@@ -873,10 +873,10 @@ def test_docker_compose_up(monkeypatch, tmp_path):
 ---
 
 ## Story-012: 天天基金接口调试与优化
-**Status:** `pending` | **Story ID:** Story-012
+**Status:** `done` | **Story ID:** Story-012
 
 ### Task: TASK-1201 — 接口调通 + 降级链路验证
-**Story:** Story-012 | **Status:** `pending` | **Type:** `fix` | **Module:** `src/ttfund_client.py`, `docs/ttfund_api_field_mapping.md`
+**Story:** Story-012 | **Status:** `done` | **Type:** `fix` | **Module:** `src/ttfund_client.py`, `docs/ttfund_api_field_mapping.md`
 
 #### Functionality
 基于 Story-006 完成的 `ttfund_client.py`，实际调用天天基金 API，验证并修复以下问题：
@@ -963,10 +963,10 @@ def test_nav_history_contract():
 ---
 
 ## Story-013: 季度分析报告生成
-**Status:** `pending` | **Story ID:** Story-013
+**Status:** `done` | **Story ID:** Story-013
 
 ### Task: TASK-1301 — 报告生成脚本框架
-**Story:** Story-013 | **Status:** `pending` | **Type:** `feat` | **Module:** `src/generate_quarterly_report.py`
+**Story:** Story-013 | **Status:** `done` | **Type:** `feat` | **Module:** `src/generate_quarterly_report.py`
 
 #### Functionality
 在 `collector_quarterly.py` 完成后，扩展生成季度分析报告的数据汇总：
@@ -1035,18 +1035,18 @@ def test_generate_quarterly_summary(monkeypatch, tmp_path):
 
 | Story | Tasks | Status | 详细描述 |
 |-------|-------|--------|---------|
-| Story-001 | TASK-101, TASK-102, TASK-103 | `pending` | ✅ 完整 |
-| Story-002 | TASK-201, TASK-204 | `pending` | ✅ 完整 |
-| Story-003 | TASK-301, TASK-302, TASK-303 | `pending` | ✅ 完整 |
-| Story-004 | TASK-401 | `pending` | ✅ 完整 |
-| Story-005 | TASK-501, TASK-502, TASK-503 | `pending` | ✅ 完整 |
-| Story-006 | TASK-601, TASK-602 | `pending` | ✅ 完整 |
-| Story-007 | TASK-701 | `pending` | ✅ 已补充 |
-| Story-008 | TASK-801 | `pending` | ✅ 已补充 |
-| Story-009 | TASK-901 | `pending` | ✅ 已补充 |
-| Story-010 | TASK-1001 | `pending` | ✅ 已补充 |
-| Story-011 | TASK-1101 | `pending` | ✅ 已补充 |
-| Story-012 | TASK-1201 | `pending` | ✅ 已补充 |
-| Story-013 | TASK-1301 | `pending` | ✅ 已补充 |
+| Story-001 | TASK-101, TASK-102, TASK-103 | `done` | ✅ 完整 |
+| Story-002 | TASK-201, TASK-204 | `done` | ✅ 完整 |
+| Story-003 | TASK-301, TASK-302, TASK-303 | `done` | ✅ 完整 |
+| Story-004 | TASK-401 | `done` | ✅ 完整 |
+| Story-005 | TASK-501, TASK-502, TASK-503 | `done` | ✅ 完整 |
+| Story-006 | TASK-601, TASK-602 | `done` | ✅ 完整 |
+| Story-007 | TASK-701 | `done` | ✅ 已补充 |
+| Story-008 | TASK-801 | `done` | ✅ 已补充 |
+| Story-009 | TASK-901 | `done` | ✅ 已补充 |
+| Story-010 | TASK-1001 | `done` | ✅ 已补充 |
+| Story-011 | TASK-1101 | `done` | ✅ 已补充 |
+| Story-012 | TASK-1201 | `done` | ✅ 已补充 |
+| Story-013 | TASK-1301 | `done` | ✅ 已补充 |
 
 ---

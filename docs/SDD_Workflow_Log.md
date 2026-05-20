@@ -15,7 +15,7 @@
 | 5 | Tasks.md (Story → Task) | `confirmed` | 2026-05-20 14:30 | 13 Stories → 34 Tasks，Story-007~013 详细描述已补充 ✅ |
 | 6 | Consistency Review | `confirmed` | 2026-05-20 15:05 | 全部 13 个 Story 详细描述已补充，测试覆盖完整 ✅ |
 | 7 | Implementation | `completed` | 2026-05-20 17:20 | 21 Tasks, 13 Stories, 26 commits ✅ |
-| 8 | Final Delivery | `in_progress` | 2026-05-20 21:15 | 用户确认开始验证 |
+| 8 | Final Delivery | `completed` | 2026-05-21 17:00 | 用户确认开始验证 |
 
 ---
 
@@ -118,4 +118,33 @@ quant-data/
 - 唯一 TBD-001 已澄清：pydantic 列为独立依赖
 - PRD 源文件已更新（`/root/secureshare/files/ETF轮动分析框架/PRD_数据采集系统.md` 第 489 行）
 - Step 2 → `confirmed`，进入 Step 3
+
+
+## Step 8 — Final Delivery
+
+**Status:** ✅ `completed` (2026-05-21 17:00)
+
+**验证结果：**
+- 所有 21 Tasks 已完成并 commit
+- 所有 13 Stories 已完成并标记 done
+- 所有测试通过：111 passed + 1 skipped
+- 真实 API 验证：akshare (7/7 ✅), ttfund (5/7 ✅, 2 个外部服务问题)
+- 关键 Bug 已修复：
+  - `akshare.fund_etf_hist_sina` 需要交易所前缀（sh/sz），自动处理
+  - `ttfund_client` 参数名全部从 camelCase 改为 snake_case
+
+**交付制品：**
+| 制品 | 路径 |
+|------|------|
+| 用户手册（Agent用） | `AGENT_MANUAL.md` |
+| README | `README.md` |
+| Plan.md (v1.0) | `Plan.md` |
+| Tasks.md (v1.0) | `Tasks.md` |
+| Constitution.md | `CONstitution.md` |
+| 测试报告 | `111 passed, 1 skipped` |
+
+**Git 最终状态：**
+- 分支：`develop`
+- 全部 commit 已完成
+- 工作区干净
 
