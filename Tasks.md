@@ -623,3 +623,382 @@ def test_get_nav_history_returns_dataframe(monkeypatch):
 | Story-011 | TASK-1101 | `pending` |
 | Story-012 | TASK-1201 | `pending` |
 | Story-013 | TASK-1301 | `pending` |
+---
+
+## Story-007: 日度采集 collector_daily.py
+**Status:** `pending` | **Story ID:** Story-007
+
+### Task: TASK-701 — collector_daily.py 主脚本
+**Story:** Story-007 | **Status:** `pending` | **Type:** `feat` | **Module:** `src/collector_daily.py`
+
+#### Functionality
+创建 `collector_daily.py`，支持两种运行模式：
+
+**Mode: `close`（交易日 15:30）**
+| # | 数据 | 来源 | 调用 | 存储 |
+|---|------|------|------|------|
+| 1 | ETF 全市场行情快照 | AkShare | `akshare_client.get_etf_snapshot()` | `daily/etf_snapshot_{date}.csv` |
+| 2 | 融资融券余额 | AkShare | `akshare_client.get_margin_sh()` | `daily/margin_sh_{date}.csv` |
+| 3 | 核心 ETF 净值 | 天天基金 | `ttfund_client.get_nav_history(code, "y")` 遍历 ETF_WATCH_LIST | `daily/nav_{code}_{date}.csv` |
+| 4 | 北向资金近 3 月 | AkShare | `akshare_client.get_north_flow("沪股通", 3)` | `daily/north_flow_{date}.csv` |
+
+**Mode: `morning`（每日 08:00）**
+| # | 数据 | 来源 | 调用 | 存储 |
+|---|------|------|------|------|
+| 1 | 黄金 + 宏观指标 | 天天基金 | `ttfund_client.get_gold_info("all")` | `daily/gold_macro_{date}.json` |
+| 2 | 核心指数估值分位 | 天天基金 | `ttfund_client.get_index_info(idx, "all")` 遍历 INDEX_WATCH_LIST | `daily/index_valuation_{date}.json` |
+
+**核心逻辑：**
+1. 检查今天是否交易日（排除周末和节假日）
+2. 逐项采集，每项调用 `storage.collect_if_missing()` 实现 partial rerun
+3. 每项采集后执行 `validator.validate()` 校验
+4. 校验通过 → 保存文件；失败 → 告警 + 标记异常，继续其他任务
+5. 汇总输出：采集成功率、各接口状态
+6. 日志写入 `data/logs/collect_{date}.csv`
+
+**CLI 用法：**
+```bash
+python collector_daily.py --mode=close   # 交易日收盘后
+python collector_daily.py --mode=morning # 每日早间
+```
+
+#### Dependencies
+- TASK-501（akshare_client 行情接口）
+- TASK-601, TASK-602（ttfund_client）
+- TASK-303（collect_if_missing）
+- TASK-401（validator）
+- TASK-201, TASK-204（logger）
+
+#### Test Cases
+```python
+# TEST-701 — collector_daily 端到端测试（mock）
+def test_collector_daily_close_modes(monkeypatch, tmp_path):
+    """测试 close 模式：全部 cache_hit 时不调用真实 API"""
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    # 预先写入缓存文件，验证不重复请求
+    ...
+
+def test_collector_daily_morning_modes(monkeypatch, tmp_path):
+    """测试 morning 模式"""
+    ...
+
+def test_collector_daily_partial_rerun(monkeypatch, tmp_path):
+    """部分数据已存在时，只补全缺失项"""
+    ...
+
+def test_collector_daily_holiday_skip(monkeypatch):
+    """节假日不执行采集"""
+    ...
+```
+
+---
+
+## Story-008: 周度采集 collector_weekly.py
+**Status:** `pending` | **Story ID:** Story-008
+
+### Task: TASK-801 — collector_weekly.py 主脚本
+**Story:** Story-008 | **Status:** `pending` | **Type:** `feat` | **Module:** `src/collector_weekly.py`
+
+#### Functionality
+创建 `collector_weekly.py`，运行时间：每周日 20:00
+
+| # | 数据 | 来源 | 调用 | 存储 |
+|---|------|------|------|------|
+| 1 | ETF 规模/份额 | AkShare | `akshare_client.get_etf_scale()` | `weekly/etf_scale_{date}.csv` |
+| 2 | 条件选基排名 | 天天基金 | `ttfund_client.search_funds(1, 50, "5_6_-1")` | `weekly/fund_rank_{date}.csv` |
+| 3 | 重点基金经理信息 | 天天基金 | `ttfund_client.get_manager_info(name)` 遍历经理列表 | `weekly/manager_{name}_{date}.json` |
+
+**核心逻辑：**
+1. 运行前检查是否上周已采集（exists_today）
+2. 调用各数据源，使用 `collect_if_missing` partial rerun
+3. 每项校验 + 日志记录
+4. 汇总报告
+
+**CLI 用法：**
+```bash
+python collector_weekly.py
+```
+
+#### Dependencies
+- TASK-501（akshare_client.get_etf_scale）
+- TASK-602（ttfund_client.search_funds, get_manager_info）
+- TASK-303（collect_if_missing）
+- TASK-401（validator）
+
+#### Test Cases
+```python
+# TEST-801 — collector_weekly 端到端测试（mock）
+def test_collector_weekly_runs_all_sources(monkeypatch, tmp_path):
+    ...
+
+def test_collector_weekly_partial_rerun(monkeypatch, tmp_path):
+    ...
+```
+
+---
+
+## Story-009: 月度采集 collector_monthly.py
+**Status:** `pending` | **Story ID:** Story-009
+
+### Task: TASK-901 — collector_monthly.py 主脚本
+**Story:** Story-009 | **Status:** `pending` | **Type:** `feat` | **Module:** `src/collector_monthly.py`
+
+#### Functionality
+创建 `collector_monthly.py`，运行时间：每月1日 02:00
+
+| # | 数据 | 来源 | 调用 | 存储 |
+|---|------|------|------|------|
+| 1 | PMI | AkShare | `akshare_client.get_pmi()` | `monthly/macro_pmi_{month}.csv` |
+| 2 | CPI | AkShare | `akshare_client.get_cpi()` | `monthly/macro_cpi_{month}.csv` |
+| 3 | PPI | AkShare | `akshare_client.get_ppi()` | `monthly/macro_ppi_{month}.csv` |
+| 4 | M2/M1/M0 | AkShare | `akshare_client.get_m2()` | `monthly/macro_m2_{month}.csv` |
+| 5 | 社融增量 | AkShare | `akshare_client.get_shrzgm()` | `monthly/macro_shrzgm_{month}.csv` |
+| 6 | GDP | AkShare | `akshare_client.get_gdp()` | `monthly/macro_gdp_{month}.csv` |
+| 7 | 工业增加值 | AkShare | `akshare_client.get_industrial()` | `monthly/macro_industrial_{month}.csv` |
+| 8 | LPR 利率 | AkShare | `akshare_client.get_lpr()` | `monthly/macro_lpr_{month}.csv` |
+| 9 | 核心 ETF 持仓 | 天天基金 | `ttfund_client.get_holdings(code)` 遍历 ETF_WATCH_LIST | `monthly/holding_{code}_{month}.json` |
+
+**⚠️ 注意：** CPI/PPI/工业增加值接口耗时 20-40 秒，月度脚本不着急，逐个运行即可。
+
+**核心逻辑：**
+1. 使用 `collect_if_missing` 避免重复请求（TTL 720h = 30 天）
+2. 慢接口优先使用缓存（已存在则直接读缓存，不触发 API）
+3. 每项校验 + 日志记录
+4. 汇总报告（注明哪些走了缓存、哪些触发了 API）
+
+**CLI 用法：**
+```bash
+python collector_monthly.py
+```
+
+#### Dependencies
+- TASK-503（akshare_client 宏观接口）
+- TASK-602（ttfund_client.get_holdings）
+- TASK-303（collect_if_missing）
+- TASK-401（validator）
+
+#### Test Cases
+```python
+# TEST-901 — collector_monthly 端到端测试（mock）
+def test_collector_monthly_slow_apis_cached(monkeypatch, tmp_path):
+    """慢接口第二次运行走缓存，不触发真实 API"""
+    ...
+
+def test_collector_monthly_runs_all_sources(monkeypatch, tmp_path):
+    ...
+```
+
+---
+
+## Story-010: 季度采集 collector_quarterly.py
+**Status:** `pending` | **Story ID:** Story-010
+
+### Task: TASK-1001 — collector_quarterly.py 主脚本
+**Story:** Story-010 | **Status:** `pending` | **Type:** `feat` | **Module:** `src/collector_quarterly.py`
+
+#### Functionality
+创建 `collector_quarterly.py`，运行时间：每季初1日 03:00
+
+| # | 数据 | 来源 | 调用 | 存储 |
+|---|------|------|------|------|
+| 1 | 行业配置 | AkShare | `akshare_client.get_industry_alloc(year)` | `quarterly/industry_alloc_{year}.csv` |
+| 2 | 投顾策略 | 天天基金 | `ttfund_client.get_strategy(name)` | `quarterly/strategy_{name}_{year}.json` |
+| 3 | 持有人结构 | 天天基金 | `ttfund_client.get_fund_info(code)` 提取持有人字段 | `quarterly/holder_structure_{code}_{year}.json` |
+
+**核心逻辑：**
+1. `get_industry_alloc` — 缓存 2160h（90 天），季度更新一次
+2. `get_strategy` — 遍历配置的策略名列表
+3. `get_fund_info` — 批量获取 ETF 持有人结构
+4. 使用 `collect_if_missing` partial rerun
+5. 汇总报告
+
+**CLI 用法：**
+```bash
+python collector_quarterly.py
+```
+
+#### Dependencies
+- TASK-503（akshare_client.get_industry_alloc）
+- TASK-602（ttfund_client.get_strategy, get_fund_info）
+- TASK-303（collect_if_missing）
+- TASK-401（validator）
+
+#### Test Cases
+```python
+# TEST-1001 — collector_quarterly 端到端测试（mock）
+def test_collector_quarterly_runs_all_sources(monkeypatch, tmp_path):
+    ...
+```
+
+---
+
+## Story-011: 容器化部署
+**Status:** `pending` | **Story ID:** Story-011
+
+### Task: TASK-1101 — Dockerfile + docker-compose
+**Story:** Story-011 | **Status:** `pending` | **Type:** `feat` | **Module:** `Dockerfile`, `docker-compose.yml`
+
+#### Functionality
+1. **Dockerfile** — 多阶段构建
+   - 基础镜像：`python:3.12-slim`
+   - 安装系统依赖（gcc, git）
+   - 安装 Python 依赖：`pip install -r requirements.txt`
+   - 非 root 用户运行（创建 `app` 用户）
+   - 健康检查：`python -c "import src.collector_daily"`
+   - 入口脚本：`python collector_daily.py`
+
+2. **docker-compose.yml** — 本地开发 + Cron 模拟
+   - 服务：`collector`（容器内 Python 运行 Cron）
+   - 宿主机目录挂载：`/root/secureshare/files/ETF轮动分析框架/`
+   - 环境变量注入：`TTFUND_APIKEY`
+
+#### Dependencies
+- TASK-103（requirements.txt 完成后）
+- 所有采集脚本完成（TASK-701, TASK-801, TASK-901, TASK-1001）
+
+#### Test Cases
+```python
+# TEST-1101 — 容器构建 + 健康检查（smoke test）
+def test_dockerfile_builds(tmp_path):
+    """验证 Dockerfile 能成功构建"""
+    ...
+
+def test_docker_compose_up(monkeypatch, tmp_path):
+    """验证 docker-compose up 能正常启动"""
+    ...
+```
+
+---
+
+## Story-012: 天天基金接口调试与优化
+**Status:** `pending` | **Story ID:** Story-012
+
+### Task: TASK-1201 — 接口调通 + 降级链路验证
+**Story:** Story-012 | **Status:** `pending` | **Type:** `fix` | **Module:** `src/ttfund_client.py`, `docs/ttfund_api_field_mapping.md`
+
+#### Functionality
+基于 Story-006 完成的 `ttfund_client.py`，实际调用天天基金 API，验证并修复以下问题：
+
+1. **调通 8 个接口的实际调用**
+   - `get_fund_info("510300")` → 验证返回字段
+   - `get_nav_history("510300", "y")` → 验证净值数据
+   - `get_index_info("沪深300", "all")` → 验证估值分位
+   - `get_holdings("510300")` → 验证持仓字段
+   - `search_funds(1, 50, "5_6_-1")` → 验证选基结果
+   - `get_manager_info("张坤")` → 验证经理信息
+   - `get_gold_info("all")` → 验证黄金数据
+   - `get_strategy("稳健", "all")` → 验证策略数据
+
+2. **记录接口响应格式和字段映射**
+   - 写入 `docs/ttfund_api_field_mapping.md`，供 Story-007~010 采集脚本使用
+
+3. **修复发现的问题**
+   - 字段名不匹配 → 更新接口封装
+   - 数据为空 → 记录并告警（不影响其他接口）
+   - API 限流 → 增加间隔或添加重试逻辑
+
+#### Dependencies
+- TASK-602（8 个接口封装完成）
+
+#### Test Cases
+```python
+# 无自动化测试 — 人工/脚本验证
+def test_get_fund_info_real():
+    result = get_fund_info("510300")
+    assert "nav" in result or "单位净值" in str(result)
+
+def test_get_nav_history_real():
+    result = get_nav_history("510300", "y")
+    assert len(result) > 0
+```
+
+---
+
+## Story-013: 季度分析报告生成
+**Status:** `pending` | **Story ID:** Story-013
+
+### Task: TASK-1301 — 报告生成脚本框架
+**Story:** Story-013 | **Status:** `pending` | **Type:** `feat` | **Module:** `src/generate_quarterly_report.py`
+
+#### Functionality
+在 `collector_quarterly.py` 完成后，扩展生成季度分析报告的数据汇总：
+
+1. **生成季度数据汇总文件**
+   - 读取 `quarterly/` 下本季度的所有数据文件
+   - 生成 `quarterly/report_{year}Q{n}_summary.json`：
+     - 行业配置变化（相比上季度）
+     - ETF 规模变化趋势
+     - 北向资金季度流入
+     - 宏观指标（GDP/PPI/M2 等）季度对比
+
+2. **输出格式**
+   - JSON 文件，供 LLM 读取生成报告
+   - 字段：`quarter`, `industry_alloc`, `etf_scale_trend`, `north_flow`, `macro_indicators`
+
+3. **可选：生成 Markdown 报告**
+   - 调用 LLM API 生成分析报告（依赖外部 LLM）
+   - 输出 `quarterly/report_{year}Q{n}.md`
+
+**CLI 用法：**
+```bash
+python generate_quarterly_report.py --year 2026 --quarter 2
+```
+
+#### Dependencies
+- TASK-1001（collector_quarterly 完成）
+- Story-007~010 的所有数据采集完成
+
+#### Test Cases
+```python
+# TEST-1301 — 报告生成测试
+def test_generate_quarterly_summary(monkeypatch, tmp_path):
+    """验证季度汇总文件生成"""
+    ...
+```
+
+---
+
+## 更新后的 Test Task 汇总
+
+| Test Task | Story | Test Type | Description |
+|-----------|-------|-----------|------------|
+| TEST-101 | Story-001 | Unit | ETF/INDEX 列表配置测试 |
+| TEST-201 | Story-002 | Unit | log_collect / alert 写入测试 |
+| TEST-202 | Story-002 | Unit | run_id 唯一性测试 |
+| TEST-301 | Story-003 | Unit | CSV 读写 + partial rerun 逻辑测试 |
+| TEST-302 | Story-003 | Unit | JSON 读写测试 |
+| TEST-401 | Story-004 | Unit | 校验规则 + check_stale 测试 |
+| TEST-501 | Story-005 | Unit | _with_cache 缓存命中/未命中测试 |
+| TEST-502 | Story-005 | Unit | 行情接口 + 降级链路测试 |
+| TEST-503 | Story-005 | Unit | 宏观接口测试 |
+| TEST-601 | Story-006 | Unit | API 调用间隔测试 |
+| TEST-602 | Story-006 | Unit | 8 个接口 mock 测试 |
+| TEST-701 | Story-007 | Integration | collector_daily 端到端测试 |
+| TEST-801 | Story-008 | Integration | collector_weekly 端到端测试 |
+| TEST-901 | Story-009 | Integration | collector_monthly 端到端测试 |
+| TEST-1001 | Story-010 | Integration | collector_quarterly 端到端测试 |
+| TEST-1101 | Story-011 | Smoke | 容器构建 + 健康检查测试 |
+| TEST-1201 | Story-012 | Manual | 天天基金接口人工验证 |
+| TEST-1301 | Story-013 | Integration | 季度报告生成测试 |
+
+---
+
+## 更新后的 Story → Task 汇总
+
+| Story | Tasks | Status | 详细描述 |
+|-------|-------|--------|---------|
+| Story-001 | TASK-101, TASK-102, TASK-103 | `pending` | ✅ 完整 |
+| Story-002 | TASK-201, TASK-204 | `pending` | ✅ 完整 |
+| Story-003 | TASK-301, TASK-302, TASK-303 | `pending` | ✅ 完整 |
+| Story-004 | TASK-401 | `pending` | ✅ 完整 |
+| Story-005 | TASK-501, TASK-502, TASK-503 | `pending` | ✅ 完整 |
+| Story-006 | TASK-601, TASK-602 | `pending` | ✅ 完整 |
+| Story-007 | TASK-701 | `pending` | ✅ 已补充 |
+| Story-008 | TASK-801 | `pending` | ✅ 已补充 |
+| Story-009 | TASK-901 | `pending` | ✅ 已补充 |
+| Story-010 | TASK-1001 | `pending` | ✅ 已补充 |
+| Story-011 | TASK-1101 | `pending` | ✅ 已补充 |
+| Story-012 | TASK-1201 | `pending` | ✅ 已补充 |
+| Story-013 | TASK-1301 | `pending` | ✅ 已补充 |
+
+---

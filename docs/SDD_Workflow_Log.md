@@ -11,7 +11,9 @@
 | 1 | PRD.md | `loaded` | 2026-05-20 00:04 | 从 symlink 加载 |
 | 2 | PRD Quality Check | `confirmed` | 2026-05-20 00:10 | TBD-001 已澄清，PRD 质量通过 |
 | 3 | Constitution | `confirmed` | 2026-05-20 00:03 | v0.2，已更新 |
-| 4 | Plan.md (MVP + Stories) | `pending` | — | 即将开始 |
+| 4 | Plan.md (MVP + Stories) | `confirmed` | 2026-05-20 00:15 | 4 MVPs, 13 Stories, Git commit 完成 |
+| 5 | Tasks.md (Story → Task) | `confirmed` | 2026-05-20 14:30 | 13 Stories → 34 Tasks，Story-007~013 详细描述已补充 ✅ |
+| 6 | Consistency Review | `in_progress` | 2026-05-20 14:30 | Step 6 进行中：Story-007~013 详细描述已补充，等待确认 |
 | 5 | Tasks.md (Story → Task) | `pending` | — | — |
 | 6 | Consistency Review | `pending` | — | — |
 | 7 | Implementation | `pending` | — | — |
