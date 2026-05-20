@@ -41,6 +41,70 @@ def load_csv(filepath: str) -> pd.DataFrame:
     return pd.read_csv(path, encoding='utf-8')
 
 
+def exists_today(filepath: str) -> bool:
+    """Check if a file exists and is non-empty.
+
+    Args:
+        filepath: Path to the file.
+
+    Returns:
+        True if file exists and has non-zero size, False otherwise.
+    """
+    path = Path(filepath)
+    return path.exists() and path.stat().st_size > 0
+
+
+def collect_if_missing(
+    filepath: str,
+    fetch_fn: callable,
+    *args,
+    **kwargs,
+) -> pd.DataFrame:
+    """Fetch data and save to cache if today's file is missing.
+
+    Args:
+        filepath: Path to the cache file.
+        fetch_fn: Callable that returns a DataFrame (no args).
+        *args: Positional args passed to fetch_fn.
+        **kwargs: Keyword args passed to fetch_fn.
+
+    Returns:
+        DataFrame from cache or freshly fetched.
+    """
+    from src.logger import log_collect
+    import time
+
+    start = time.time()
+    filename = Path(filepath).name
+
+    if exists_today(filepath):
+        # Cache hit — read and log
+        elapsed = time.time() - start
+        log_collect(
+            task="partial_rerun",
+            source=filename,
+            status="cache_hit",
+            rows=0,
+            elapsed_sec=elapsed,
+            message=f"Read from cache: {filepath}",
+        )
+        return load_csv(filepath)
+
+    # Miss — fetch, save, log
+    df = fetch_fn(*args, **kwargs)
+    save_csv(df, filepath)
+    elapsed = time.time() - start
+    log_collect(
+        task="partial_rerun",
+        source=filename,
+        status="success",
+        rows=len(df),
+        elapsed_sec=elapsed,
+        message=f"Fetched and saved: {filepath}",
+    )
+    return df
+
+
 def save_json(data: list | dict, filepath: str) -> None:
     """Save dict or list to a JSON file.
 
