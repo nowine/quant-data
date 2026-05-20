@@ -16,7 +16,7 @@ def test_log_collect_writes_csv(tmp_path, monkeypatch):
     logger_module.log_collect("test_task", "akshare", "success", 100, 1.5, "")
 
     today = date.today().strftime("%Y%m%d")
-    log_file = tmp_path / f"data/logs/collect_{today}.csv"
+    log_file = tmp_path / f"logs/collect_{today}.csv"
     assert log_file.exists(), f"Log file not created: {log_file}"
     content = log_file.read_text()
     assert "test_task" in content

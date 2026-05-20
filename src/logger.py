@@ -38,7 +38,7 @@ def log_collect(
     from src.config import DATA_DIR
 
     today = date.today().strftime("%Y%m%d")
-    log_dir = os.path.join(DATA_DIR, "data", "logs")
+    log_dir = os.path.join(DATA_DIR, "logs")
     os.makedirs(log_dir, exist_ok=True)
     log_file = os.path.join(log_dir, f"collect_{today}.csv")
 
