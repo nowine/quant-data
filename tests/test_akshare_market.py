@@ -65,7 +65,7 @@ def test_get_north_flow_returns_dataframe(monkeypatch, tmp_path):
     monkeypatch.setattr(
         akshare_client.ak,
         "stock_hsgt_hist_em",
-        lambda symbol, adjust: pd.DataFrame({"date": ["2024-01-01"], "flow": [1.5]}),
+        lambda symbol: pd.DataFrame({"date": ["2024-01-01"], "flow": [1.5]}),
     )
 
     result = akshare_client.get_north_flow("北向资金", months=3)
