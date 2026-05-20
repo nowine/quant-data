@@ -143,7 +143,7 @@ def test_get_nav_history_sends_correct_params(monkeypatch):
     ttfund_mod.get_nav_history("510300", "3y")
 
     assert captured["body"]["skill_id"] == "FUND_NAV_INFO"
-    assert captured["body"]["fundId"] == "510300"
+    assert captured["body"]["fund_id"] == "510300"
     assert captured["body"]["range"] == "3y"
 
 
@@ -169,7 +169,7 @@ def test_get_index_info_sends_correct_params(monkeypatch):
     ttfund_mod.get_index_info("000001", "all")
 
     assert captured["body"]["skill_id"] == "FUND_INDEX_INFO"
-    assert captured["body"]["indexId"] == "000001"
+    assert captured["body"]["index_id"] == "000001"
     assert captured["body"]["scope"] == "all"
 
 
@@ -195,8 +195,8 @@ def test_get_holdings_sends_correct_params(monkeypatch):
     ttfund_mod.get_holdings("510300", "stock")
 
     assert captured["body"]["skill_id"] == "FUND_HOLDING_INFO"
-    assert captured["body"]["fundId"] == "510300"
-    assert captured["body"]["holdingType"] == "stock"
+    assert captured["body"]["fund_id"] == "510300"
+    assert captured["body"]["holding_type"] == "stock"
 
 
 # ── Test: search_funds ──────────────────────────────────────────────────────
@@ -248,7 +248,7 @@ def test_get_manager_info_sends_correct_name(monkeypatch):
     ttfund_mod.get_manager_info("张三")
 
     assert captured["body"]["skill_id"] == "FUND_MANAGER_INFO"
-    assert captured["body"]["name"] == "张三"
+    assert captured["body"]["manager_name"] == "张三"
 
 
 # ── Test: get_gold_info ─────────────────────────────────────────────────────
@@ -298,5 +298,5 @@ def test_get_strategy_sends_correct_params(monkeypatch):
     ttfund_mod.get_strategy("稳健型", "all")
 
     assert captured["body"]["skill_id"] == "FUND_TG_STRATEGY_INFO"
-    assert captured["body"]["name"] == "稳健型"
+    assert captured["body"]["strategy_name"] == "稳健型"
     assert captured["body"]["scope"] == "all"

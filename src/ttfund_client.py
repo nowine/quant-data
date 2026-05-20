@@ -112,7 +112,7 @@ def get_nav_history(fund_id: str, range: str = "y") -> dict:
         fund_id: Fund identifier.
         range:   One of y / 3y / 6y / n / 2n / 3n / ln.
     """
-    return call("FUND_NAV_INFO", {"fundId": fund_id, "range": range})
+    return call("FUND_NAV_INFO", {"fund_id": fund_id, "range": range})
 
 
 def get_index_info(index_id: str, scope: str = "all") -> dict:
@@ -122,7 +122,7 @@ def get_index_info(index_id: str, scope: str = "all") -> dict:
         index_id: Index identifier.
         scope:    One of all / gold / macro / risk.
     """
-    return call("FUND_INDEX_INFO", {"indexId": index_id, "scope": scope})
+    return call("FUND_INDEX_INFO", {"index_id": index_id, "scope": scope})
 
 
 def get_holdings(fund_id: str, holding_type: str = "stock") -> dict:
@@ -132,7 +132,7 @@ def get_holdings(fund_id: str, holding_type: str = "stock") -> dict:
         fund_id:      Fund identifier.
         holding_type: One of stock / bond / all.
     """
-    return call("FUND_HOLDING_INFO", {"fundId": fund_id, "holdingType": holding_type})
+    return call("FUND_HOLDING_INFO", {"fund_id": fund_id, "holding_type": holding_type})
 
 
 def search_funds(page: int = 1, page_num: int = 20, order: str = "desc") -> dict:
@@ -150,7 +150,7 @@ def search_funds(page: int = 1, page_num: int = 20, order: str = "desc") -> dict
 
 def get_manager_info(name: str) -> dict:
     """Return manager profile via FUND_MANAGER_INFO."""
-    return call("FUND_MANAGER_INFO", {"name": name})
+    return call("FUND_MANAGER_INFO", {"manager_name": name})
 
 
 
@@ -171,7 +171,7 @@ def get_strategy(name: str, scope: str = "all") -> dict:
         name:  Strategy name.
         scope: One of all / gold / macro / risk.
     """
-    return call("FUND_TG_STRATEGY_INFO", {"name": name, "scope": scope})
+    return call("FUND_TG_STRATEGY_INFO", {"strategy_name": name, "scope": scope})
 
 
 
