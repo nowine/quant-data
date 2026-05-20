@@ -1,0 +1,10 @@
+version: '3.8'
+services:
+  collector:
+    build: .
+    volumes:
+      - /root/secureshare/files:/data
+    environment:
+      - TTFUND_APIKEY=${TTFUND_APIKEY}
+      - PYTHONPATH=/app
+    command: python src/collector_daily.py --mode=close
