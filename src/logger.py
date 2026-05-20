@@ -21,6 +21,34 @@ def get_run_id() -> str:
 run_id = get_run_id()
 
 
+def alert(level: str, message: str) -> None:
+    """Append a row to the daily alert CSV log.
+
+    File: data/logs/alert_YYYYMMDD.csv
+    Fields: timestamp, level, message, run_id
+    """
+    from src.config import DATA_DIR
+
+    today = date.today().strftime("%Y%m%d")
+    log_dir = os.path.join(DATA_DIR, "logs")
+    os.makedirs(log_dir, exist_ok=True)
+    log_file = os.path.join(log_dir, f"alert_{today}.csv")
+
+    row = {
+        "timestamp": datetime.now().isoformat(timespec="seconds"),
+        "level": level,
+        "message": message,
+        "run_id": run_id,
+    }
+
+    file_exists = os.path.isfile(log_file)
+    with open(log_file, "a", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=row.keys())
+        if not file_exists:
+            writer.writeheader()
+        writer.writerow(row)
+
+
 def log_collect(
     task: str,
     source: str,
