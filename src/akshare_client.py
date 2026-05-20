@@ -9,6 +9,15 @@ Public market data functions:
 - get_etf_history()      : ETF historical k-line with sina→em fallback (24h TTL)
 - get_etf_scale()        : ETF scale on SSE (sse, 168h TTL)
 - get_margin_sh()        : Shanghai margin trading (sh, 24h TTL)
+- get_pmi()             : China manufacturing PMI (72h TTL)
+- get_cpi()             : China CPI yearly (720h TTL)
+- get_ppi()             : China PPI yearly (720h TTL)
+- get_m2()              : China M2 money supply (720h TTL)
+- get_lpr()             : China LPR (168h TTL)
+- get_shrzgm()          : China social financing (720h TTL)
+- get_gdp()             : China GDP (2160h TTL)
+- get_industrial()       : China industrial production YoY (720h TTL)
+- get_industry_alloc()   : Fund industry allocation (2160h TTL)
 """
 
 import os
@@ -177,3 +186,116 @@ def get_margin_sh() -> pd.DataFrame:
         DataFrame with margin trading data (date, margin_balance, margin_buy, …).
     """
     return _with_cache("margin_sh", 24, lambda: ak.macro_china_market_margin_sh())
+
+
+def get_pmi() -> pd.DataFrame:
+    """China manufacturing PMI.
+
+    Wraps ``akshare.macro_china_pmi()``.
+    Cache TTL: 720 hours (30 days).
+
+    Returns:
+        DataFrame with PMI data.
+    """
+    return _with_cache("macro_pmi", 720, lambda: ak.macro_china_pmi())
+
+
+def get_cpi() -> pd.DataFrame:
+    """China CPI yearly.
+
+    Wraps ``akshare.macro_china_cpi_yearly()``.
+    Cache TTL: 720 hours (30 days).
+
+    Returns:
+        DataFrame with CPI data.
+    """
+    return _with_cache("macro_cpi", 720, lambda: ak.macro_china_cpi_yearly())
+
+
+def get_ppi() -> pd.DataFrame:
+    """China PPI yearly.
+
+    Wraps ``akshare.macro_china_ppi_yearly()``.
+    Cache TTL: 720 hours (30 days).
+
+    Returns:
+        DataFrame with PPI data.
+    """
+    return _with_cache("macro_ppi", 720, lambda: ak.macro_china_ppi_yearly())
+
+
+def get_m2() -> pd.DataFrame:
+    """China M2 money supply.
+
+    Wraps ``akshare.macro_china_money_supply()``.
+    Cache TTL: 720 hours (30 days).
+
+    Returns:
+        DataFrame with M2 money supply data.
+    """
+    return _with_cache("macro_m2", 720, lambda: ak.macro_china_money_supply())
+
+
+def get_lpr() -> pd.DataFrame:
+    """China Loan Prime Rate (LPR).
+
+    Wraps ``akshare.macro_china_lpr()``.
+    Cache TTL: 168 hours (7 days).
+
+    Returns:
+        DataFrame with LPR data.
+    """
+    return _with_cache("macro_lpr", 168, lambda: ak.macro_china_lpr())
+
+
+def get_shrzgm() -> pd.DataFrame:
+    """China total social financing volume.
+
+    Wraps ``akshare.macro_china_shrzgm()``.
+    Cache TTL: 720 hours (30 days).
+
+    Returns:
+        DataFrame with social financing data.
+    """
+    return _with_cache("macro_shrzgm", 720, lambda: ak.macro_china_shrzgm())
+
+
+def get_gdp() -> pd.DataFrame:
+    """China GDP.
+
+    Wraps ``akshare.macro_china_gdp()``.
+    Cache TTL: 2160 hours (90 days).
+
+    Returns:
+        DataFrame with GDP data.
+    """
+    return _with_cache("macro_gdp", 2160, lambda: ak.macro_china_gdp())
+
+
+def get_industrial() -> pd.DataFrame:
+    """China industrial production year-on-year.
+
+    Wraps ``akshare.macro_china_industrial_production_yoy()``.
+    Cache TTL: 720 hours (30 days).
+
+    Returns:
+        DataFrame with industrial production data.
+    """
+    return _with_cache("macro_industrial", 720, lambda: ak.macro_china_industrial_production_yoy())
+
+
+def get_industry_alloc(year: int) -> pd.DataFrame:
+    """Fund industry allocation by year.
+
+    Wraps ``akshare.fund_portfolio_industry_allocation_em()``.
+    Cache TTL: 2160 hours (90 days).
+
+    Args:
+        year:  The year to query, e.g. 2023.
+
+    Returns:
+        DataFrame with industry allocation data.
+    """
+    return _with_cache(
+        f"macro_industry_alloc_{year}", 2160, lambda: ak.fund_portfolio_industry_allocation_em(year)
+    )
