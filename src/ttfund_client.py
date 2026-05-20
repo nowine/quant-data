@@ -11,6 +11,8 @@ Public API:
     call(skill_id, params, version="1.0") -> body dict
 """
 
+from __future__ import annotations
+
 import time
 from typing import Any
 
@@ -93,6 +95,84 @@ def _get_session() -> requests.Session:
     if _session is None:
         _session = requests.Session()
     return _session
+
+
+# ── High-level API wrappers ─────────────────────────────────────────────────────
+
+def get_fund_info(fcode: str) -> dict:
+    """"Return basic info for fund ``fcode`` via FUND_BASE_INFOS."""
+    return call("FUND_BASE_INFOS", {"fcode": fcode})
+
+
+
+def get_nav_history(fund_id: str, range: str = "y") -> dict:
+    """Return NAV history for fund ``fund_id`` via FUND_NAV_INFO.
+
+    Args:
+        fund_id: Fund identifier.
+        range:   One of y / 3y / 6y / n / 2n / 3n / ln.
+    """
+    return call("FUND_NAV_INFO", {"fundId": fund_id, "range": range})
+
+
+def get_index_info(index_id: str, scope: str = "all") -> dict:
+    """Return index details via FUND_INDEX_INFO.
+
+    Args:
+        index_id: Index identifier.
+        scope:    One of all / gold / macro / risk.
+    """
+    return call("FUND_INDEX_INFO", {"indexId": index_id, "scope": scope})
+
+
+def get_holdings(fund_id: str, holding_type: str = "stock") -> dict:
+    """Return holdings for fund ``fund_id`` via FUND_HOLDING_INFO.
+
+    Args:
+        fund_id:      Fund identifier.
+        holding_type: One of stock / bond / all.
+    """
+    return call("FUND_HOLDING_INFO", {"fundId": fund_id, "holdingType": holding_type})
+
+
+def search_funds(page: int = 1, page_num: int = 20, order: str = "desc") -> dict:
+    """Screen funds by criteria via FUND_CONDITION_SELECT.
+
+
+    Args:
+        page:     Page number (1-based).
+        page_num: Results per page.
+        order:    Sort order, e.g. "desc" or "asc".
+    """
+    return call("FUND_CONDITION_SELECT", {"page": page, "pageNum": page_num, "order": order})
+
+
+
+def get_manager_info(name: str) -> dict:
+    """Return manager profile via FUND_MANAGER_INFO."""
+    return call("FUND_MANAGER_INFO", {"name": name})
+
+
+
+def get_gold_info(scope: str = "all") -> dict:
+    """Return gold fund info via FUND_HUAAN_GOLD_INFO.
+
+
+    Args:
+        scope: One of all / gold / macro / risk.
+    """
+    return call("FUND_HUAAN_GOLD_INFO", {"scope": scope})
+
+
+def get_strategy(name: str, scope: str = "all") -> dict:
+    """Return investment-advisory strategy via FUND_TG_STRATEGY_INFO.
+
+    Args:
+        name:  Strategy name.
+        scope: One of all / gold / macro / risk.
+    """
+    return call("FUND_TG_STRATEGY_INFO", {"name": name, "scope": scope})
+
 
 
 # ── Public API ───────────────────────────────────────────────────────────────
