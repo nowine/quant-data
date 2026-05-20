@@ -219,7 +219,7 @@ def test_morning_mode_calls_get_index_info_for_all_indices(monkeypatch, tmp_path
     collector_daily.run_morning_mode()
 
     assert len(index_calls) == len(config.INDEX_WATCH_LIST), \
-        f"Expected {len(config.INDEX_WATCH_LIST)} index calls, got {len(index_calls)}"
+        f"Expected {len(config.INDEX_WATCH_LIST)} index calls, got {len(index_calls)}: {index_calls}"
     assert index_calls == config.INDEX_WATCH_LIST
 
 
@@ -276,9 +276,14 @@ def test_morning_mode_output_structure(monkeypatch, tmp_path):
     result = collector_daily.run_morning_mode()
 
     assert isinstance(result, dict)
-    for task in ["gold_macro", "index_valuation"]:
-        assert task in result, f"Missing task: {task}"
-        assert "status" in result[task]
+    assert "gold_macro" in result, f"Missing task: gold_macro"
+    assert "status" in result["gold_macro"], f"gold_macro result missing status: {result['gold_macro']}"
+    assert "index_valuation" in result, f"Missing task: index_valuation"
+    # index_valuation is a dict of index_name -> result dict with status
+    iv = result["index_valuation"]
+    assert isinstance(iv, dict), f"index_valuation should be dict, got {type(iv)}"
+    for idx_name, idx_result in iv.items():
+        assert "status" in idx_result, f"index_valuation[{idx_name}] missing status: {idx_result}"
 
 
 def test_cli_close_mode(monkeypatch, tmp_path):

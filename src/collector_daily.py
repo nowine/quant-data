@@ -65,8 +65,8 @@ def _gold_macro_path() -> Path:
     return _daily_dir() / f"gold_macro_{today()}.json"
 
 
-def _index_valuation_path() -> Path:
-    return _daily_dir() / f"index_valuation_{today()}.json"
+def _index_valuation_path(idx: str) -> Path:
+    return _daily_dir() / f"index_valuation_{idx}_{today()}.json"
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -255,7 +255,7 @@ def run_morning_mode() -> dict[str, dict]:
     # 2. 核心指数估值分位 — 遍历 INDEX_WATCH_LIST
     val_results = {}
     for idx in config.INDEX_WATCH_LIST:
-        path = _index_valuation_path()
+        path = _index_valuation_path(idx)
 
         def fetch_val(i=idx):
             return get_index_info(i, "all")

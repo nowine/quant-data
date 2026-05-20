@@ -136,7 +136,7 @@ def get_north_flow(symbol: str = "北向资金", months: int = 3) -> pd.DataFram
     return _with_cache(
         f"north_flow_{symbol}_{months}",
         168,
-        lambda: ak.stock_hsgt_hist_em(symbol=symbol, adjust=""),
+        lambda: ak.stock_hsgt_hist_em(symbol=symbol),
     )
 
 
