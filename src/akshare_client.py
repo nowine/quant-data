@@ -140,25 +140,38 @@ def get_north_flow(symbol: str = "北向资金", months: int = 3) -> pd.DataFram
     )
 
 
+def _etf_prefix(code: str) -> str:
+    """Return sina exchange prefix for ETF code.
+
+    Shanghai ETF (5xxxxx) -> 'sh'
+    Shenzhen ETF (1xxxxx) -> 'sz'
+    """
+    return "sh" if code.startswith("5") else "sz"
+
+
 def get_etf_history(code: str) -> pd.DataFrame:
     """ETF historical k-line with primary→fallback retrieval.
 
-    Primary:   ``akshare.fund_etf_hist_sina(symbol=code)``
+    Primary:   ``akshare.fund_etf_hist_sina(symbol=code)`` with correct
+               exchange prefix (sh/sz) inferred from code prefix.
     Fallback:  ``akshare.fund_etf_hist_em(symbol=code)``  (if sina fails)
     Cache TTL: 24 hours.
 
     Args:
-        code:  ETF code, e.g. "510300".
+        code:  ETF code, e.g. "510300" (sh) or "159919" (sz).
 
     Returns:
         DataFrame with historical OHLCV data.
     """
 
     def _fetch():
+        # Sina requires exchange prefix: sh510300 or sz159919
+        prefix = _etf_prefix(code)
+        symbol = f"{prefix}{code}"
         try:
-            return ak.fund_etf_hist_sina(symbol=code)
+            return ak.fund_etf_hist_sina(symbol=symbol)
         except Exception:
-            # Fallback to eastmoney when sina fails
+            # Fallback to eastmoney (no prefix needed)
             return ak.fund_etf_hist_em(symbol=code)
 
     return _with_cache(f"etf_history_{code}", 24, _fetch)
