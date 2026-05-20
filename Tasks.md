@@ -902,14 +902,60 @@ def test_docker_compose_up(monkeypatch, tmp_path):
 
 #### Test Cases
 ```python
-# 无自动化测试 — 人工/脚本验证
-def test_get_fund_info_real():
-    result = get_fund_info("510300")
-    assert "nav" in result or "单位净值" in str(result)
+# TEST-1201 — 天天基金接口自动化测试
 
+# Unit Tests (mock) — 验证接口封装逻辑，不调用真实 API
+def test_get_fund_info_mock(monkeypatch):
+    """验证 get_fund_info 请求格式和响应解析"""
+    mock_response = {
+        "code": 0,
+        "message": "success",
+        "data": {
+            "skill_id": "FUND_BASE_INFOS",
+            "raw_result": {
+                "status_code": 200,
+                "body": {
+                    "success": True,
+                    "errorCode": 0,
+                    "data": {
+                        "fund_info": {"fcode": "510300", "name": "沪深300ETF华泰柏瑞"}
+                    }
+                }
+            }
+        }
+    }
+    monkeypatch.setattr(requests, "post", lambda *a, **k: MockResponse(mock_response))
+    result = get_fund_info("510300")
+    assert result["fcode"] == "510300"
+
+def test_get_nav_history_mock(monkeypatch):
+    """验证 get_nav_history 请求格式和响应解析"""
+    ...
+
+# Integration Tests (real API) — 验证真实 API 调用
 def test_get_nav_history_real():
+    """验证 FUND_NAV_INFO 真实调用返回有效数据"""
     result = get_nav_history("510300", "y")
     assert len(result) > 0
+    assert "DWJZ" in result.columns  # 单位净值字段存在
+
+def test_get_index_info_real():
+    """验证 FUND_INDEX_INFO 真实调用"""
+    result = get_index_info("沪深300", "all")
+    assert result is not None
+
+def test_get_gold_info_real():
+    """验证 FUND_HUAAN_GOLD_INFO 真实调用"""
+    result = get_gold_info("all")
+    assert result is not None
+
+# Contract Tests — 验证响应字段稳定性
+def test_nav_history_contract():
+    """验证 nav_history 响应字段未发生变化（兼容性测试）"""
+    required_fields = ["FSRQ", "DWJZ", "JZZZL", "LJJZ"]
+    result = get_nav_history("510300", "y")
+    for field in required_fields:
+        assert field in result.columns, f"字段 {field} 缺失，接口可能已变更"
 ```
 
 ---
@@ -978,7 +1024,7 @@ def test_generate_quarterly_summary(monkeypatch, tmp_path):
 | TEST-901 | Story-009 | Integration | collector_monthly 端到端测试 |
 | TEST-1001 | Story-010 | Integration | collector_quarterly 端到端测试 |
 | TEST-1101 | Story-011 | Smoke | 容器构建 + 健康检查测试 |
-| TEST-1201 | Story-012 | Manual | 天天基金接口人工验证 |
+| TEST-1201 | Story-012 | Unit + Integration | 天天基金接口 mock + 真实 API 测试 + contract 测试 |
 | TEST-1301 | Story-013 | Integration | 季度报告生成测试 |
 
 ---
