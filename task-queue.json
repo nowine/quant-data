@@ -1,5 +1,189 @@
 {
-  "tasks": [],
+  "tasks": [
+    {
+      "taskId": "TASK-101",
+      "story": "Story-001",
+      "status": "pending",
+      "type": "feat",
+      "description": "config.py 基础配置结构",
+      "dependents": ["TASK-102", "TASK-103"]
+    },
+    {
+      "taskId": "TASK-102",
+      "story": "Story-001",
+      "status": "pending",
+      "type": "feat",
+      "description": "CACHE_TTL 和 VALIDATION_RULES",
+      "dependents": []
+    },
+    {
+      "taskId": "TASK-103",
+      "story": "Story-001",
+      "status": "pending",
+      "type": "config",
+      "description": "requirements.txt 初始化",
+      "dependents": []
+    },
+    {
+      "taskId": "TASK-201",
+      "story": "Story-002",
+      "status": "pending",
+      "type": "feat",
+      "description": "logger.py 基础结构",
+      "dependents": []
+    },
+    {
+      "taskId": "TASK-204",
+      "story": "Story-002",
+      "status": "pending",
+      "type": "feat",
+      "description": "alert() 函数",
+      "dependents": []
+    },
+    {
+      "taskId": "TASK-301",
+      "story": "Story-003",
+      "status": "pending",
+      "type": "feat",
+      "description": "storage.py save_csv / load_csv",
+      "dependents": []
+    },
+    {
+      "taskId": "TASK-302",
+      "story": "Story-003",
+      "status": "pending",
+      "type": "feat",
+      "description": "storage.py save_json / load_json",
+      "dependents": []
+    },
+    {
+      "taskId": "TASK-303",
+      "story": "Story-003",
+      "status": "pending",
+      "type": "feat",
+      "description": "storage.py partial rerun 核心逻辑",
+      "dependents": []
+    },
+    {
+      "taskId": "TASK-401",
+      "story": "Story-004",
+      "status": "pending",
+      "type": "feat",
+      "description": "validator.py ValidationResult + 校验",
+      "dependents": []
+    },
+    {
+      "taskId": "TASK-501",
+      "story": "Story-005",
+      "status": "pending",
+      "type": "feat",
+      "description": "akshare_client.py 基础 + _with_cache",
+      "dependents": []
+    },
+    {
+      "taskId": "TASK-502",
+      "story": "Story-005",
+      "status": "pending",
+      "type": "feat",
+      "description": "akshare_client.py 行情接口",
+      "dependents": []
+    },
+    {
+      "taskId": "TASK-503",
+      "story": "Story-005",
+      "status": "pending",
+      "type": "feat",
+      "description": "akshare_client.py 宏观接口",
+      "dependents": []
+    },
+    {
+      "taskId": "TASK-601",
+      "story": "Story-006",
+      "status": "pending",
+      "type": "feat",
+      "description": "ttfund_client.py 基础结构",
+      "dependents": []
+    },
+    {
+      "taskId": "TASK-602",
+      "story": "Story-006",
+      "status": "pending",
+      "type": "feat",
+      "description": "ttfund_client.py 8 个接口封装",
+      "dependents": []
+    },
+    {
+      "taskId": "TASK-701",
+      "story": "Story-007",
+      "status": "pending",
+      "type": "feat",
+      "description": "collector_daily.py 主脚本",
+      "dependents": []
+    },
+    {
+      "taskId": "TASK-801",
+      "story": "Story-008",
+      "status": "pending",
+      "type": "feat",
+      "description": "collector_weekly.py 主脚本",
+      "dependents": []
+    },
+    {
+      "taskId": "TASK-901",
+      "story": "Story-009",
+      "status": "pending",
+      "type": "feat",
+      "description": "collector_monthly.py 主脚本",
+      "dependents": []
+    },
+    {
+      "taskId": "TASK-1001",
+      "story": "Story-010",
+      "status": "pending",
+      "type": "feat",
+      "description": "collector_quarterly.py 主脚本",
+      "dependents": []
+    },
+    {
+      "taskId": "TASK-1101",
+      "story": "Story-011",
+      "status": "pending",
+      "type": "feat",
+      "description": "Dockerfile + docker-compose",
+      "dependents": []
+    },
+    {
+      "taskId": "TASK-1201",
+      "story": "Story-012",
+      "status": "pending",
+      "type": "fix",
+      "description": "接口调通 + 降级链路验证",
+      "dependents": []
+    },
+    {
+      "taskId": "TASK-1301",
+      "story": "Story-013",
+      "status": "pending",
+      "type": "feat",
+      "description": "报告生成脚本框架",
+      "dependents": []
+    }
+  ],
+  "stories": [
+    {"id": "Story-001", "tasks": ["TASK-101", "TASK-102", "TASK-103"], "status": "pending"},
+    {"id": "Story-002", "tasks": ["TASK-201", "TASK-204"], "status": "pending"},
+    {"id": "Story-003", "tasks": ["TASK-301", "TASK-302", "TASK-303"], "status": "pending"},
+    {"id": "Story-004", "tasks": ["TASK-401"], "status": "pending"},
+    {"id": "Story-005", "tasks": ["TASK-501", "TASK-502", "TASK-503"], "status": "pending"},
+    {"id": "Story-006", "tasks": ["TASK-601", "TASK-602"], "status": "pending"},
+    {"id": "Story-007", "tasks": ["TASK-701"], "status": "pending"},
+    {"id": "Story-008", "tasks": ["TASK-801"], "status": "pending"},
+    {"id": "Story-009", "tasks": ["TASK-901"], "status": "pending"},
+    {"id": "Story-010", "tasks": ["TASK-1001"], "status": "pending"},
+    {"id": "Story-011", "tasks": ["TASK-1101"], "status": "pending"},
+    {"id": "Story-012", "tasks": ["TASK-1201"], "status": "pending"},
+    {"id": "Story-013", "tasks": ["TASK-1301"], "status": "pending"}
+  ],
   "config": {
     "max_concurrent": 1,
     "max_retries": 3,
