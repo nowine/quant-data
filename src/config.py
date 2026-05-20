@@ -84,3 +84,43 @@ DATA_DIR = "/root/secureshare/files/ETF轮动分析框架/data"
 # API Timeout
 # =============================================================================
 SLOW_API_TIMEOUT = 45  # seconds
+# =============================================================================
+# Cache TTL — 数据类型对应的缓存有效期（小时）
+# =============================================================================
+CACHE_TTL = {
+    "etf_snapshot": 24,         # 当日
+    "macro_north_flow": 168,      # 7天
+    "etf_scale": 168,             # 7天
+    "margin": 24,                # 1天
+    "macro_pmi": 720,             # 30天
+    "macro_cpi": 720,             # 30天
+    "macro_ppi": 720,             # 30天
+    "macro_m2": 720,              # 30天
+    "macro_lpr": 168,             # 7天
+    "macro_shrzgm": 720,          # 30天
+    "macro_gdp": 2160,            # 90天
+    "macro_industrial": 720,      # 30天
+    "nav_history": 24,            # 当日
+    "index_valuation": 168,       # 7天
+    "holdings": 720,             # 30天
+    "manager_info": 720,          # 30天
+    "gold_info": 168,             # 7天
+    "strategy": 2160,             # 90天
+    "industry_alloc": 2160,       # 90天
+}
+
+# =============================================================================
+# Validation Rules — 数据校验规则
+# =============================================================================
+VALIDATION_RULES = {
+    "PMI": {"min": 30, "max": 70, "nullable": False},
+    "CPI_YOY": {"min": -10, "max": 20, "nullable": False},
+    "PPI_YOY": {"min": -30, "max": 30, "nullable": False},
+    "M2_YOY": {"min": 0, "max": 30, "nullable": False},
+    "LPR_1Y": {"min": 2, "max": 10, "nullable": False},
+    "GDP_YOY": {"min": -10, "max": 20, "nullable": False},
+    "PE_PERCENTILE": {"min": 0, "max": 100, "nullable": True},
+    "ETL_SCALE": {"min": 0, "max": 10000, "nullable": False},  # 亿元
+    "NAV": {"min": 0, "max": 100, "nullable": False},
+    "NORTH_FLOW": {"min": -500, "max": 500, "nullable": True},  # 亿元
+}
