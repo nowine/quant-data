@@ -56,6 +56,8 @@
 ---
 
 ## Task: TASK-101 — config.py 基础配置结构
+**Status:** `done`
+**Completed At:** 2026-05-20 15:08
 
 **Story:** Story-001
 **Status:** `pending`
