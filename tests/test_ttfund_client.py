@@ -155,26 +155,21 @@ def test_call_returns_data_raw_result_body(monkeypatch):
 
 # ── Test: API call interval ≥ 1 second ──────────────────────────────────────
 
-def test_api_call_interval_enforced(monkeypatch):
-    """Consecutive calls within < 1s should raise IntervalTooShortError."""
+def test_api_call_interval_sleeps_and_succeeds(monkeypatch):
+    """Consecutive calls within < 1s should sleep to meet the 1-second minimum."""
     call_times = []
-
     class MockSession:
         def post(self, url, **kwargs):
             call_times.append(time.time())
             return MockResponse({"code": 0, "message": "success", "data": {"raw_result": {"body": {}}}})
-
     monkeypatch.setattr(requests, "Session", MockSession)
     monkeypatch.setenv("TTFUND_APIKEY", "key")
-
     ttfund_mod = _reload_ttfund(monkeypatch, "TTFUND_APIKEY", "key")
-
-    # First call - should succeed
     ttfund_mod.call("skill1", {})
-
-    # Fast second call - should fail with IntervalTooShortError
-    with pytest.raises(ttfund_mod.IntervalTooShortError):
-        ttfund_mod.call("skill2", {})
+    first = call_times[-1]
+    ttfund_mod.call("skill2", {})
+    second = call_times[-1]
+    assert second - first >= 1.0, f"Expected ≥1s gap, got {second - first:.3f}s"
 
 
 # ── Test: timeout error raised on timeout ───────────────────────────────────

@@ -214,7 +214,8 @@ def call(
     now = time.time()
     elapsed = now - _last_call_time
     if _last_call_time > 0 and elapsed < _MIN_INTERVAL:
-        raise IntervalTooShortError(elapsed)
+        time.sleep(_MIN_INTERVAL - elapsed)
+        now = time.time()
     _last_call_time = now
 
     # ── Build request ──────────────────────────────────────────────────────────
