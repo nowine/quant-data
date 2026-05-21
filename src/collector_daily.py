@@ -12,6 +12,8 @@ import time
 from pathlib import Path
 
 
+import pandas as pd
+
 from src import config, logger as logger_module
 from src.akshare_client import (
     get_etf_snapshot,
@@ -208,7 +210,9 @@ def run_close_mode() -> dict[str, dict]:
         path = _nav_path(code)
 
         def fetch_nav(c=code):
-            return get_nav_history(c, "y")
+            raw = get_nav_history(c, "y")
+            items = raw.get("data", {}).get("nav_history", {}).get("items", [])
+            return pd.DataFrame(items)
 
         nav_results[code] = _collect_csv(f"nav_{code}", fetch_nav, path)
 
