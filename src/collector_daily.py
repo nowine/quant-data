@@ -109,16 +109,40 @@ def _tech_indicator_path(code: str) -> Path:
     return _daily_dir() / f"tech_indicator_{code}_{today()}.csv"
 
 
+# ── Error registry ─────────────────────────────────────────────────────────────
+#
+# Structured error list passed through the call stack so the agent always
+# knows which data sources failed and what to do about it.
+# Each entry format: "{task_name}: {detail}; suggestion: {action}"
+
+
+def _record_error(errors: list[str], name: str, detail: str, suggestion: str) -> None:
+    """Append a structured error to the shared errors list and log it."""
+    msg = f"{name}: {detail}; suggestion: {suggestion}"
+    errors.append(msg)
+    logger_module.log_collect(
+        task=name,
+        source=name.split("_")[0],
+        status="error",
+        rows=0,
+        elapsed_sec=0,
+        message=msg,
+    )
+
+
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _collect_csv(
     name: str,
     fetch_fn: callable,
     filepath: Path,
+    errors: list[str],
+    suggestion: str = "check data source or use LLM",
 ) -> dict:
     """Fetch data, save to CSV, return a result dict.
 
-    Uses collect_if_missing so partial reruns skip already-captured files.
+    On error or empty result the ``errors`` list is appended with a structured
+    message including the caller's ``suggestion`` (e.g. "use LLM search").
     """
     start = time.time()
 
@@ -136,6 +160,11 @@ def _collect_csv(
 
     try:
         df = fetch_fn()
+        if df.empty:
+            elapsed = time.time() - start
+            _record_error(errors, name, "returned empty data", suggestion)
+            return {"status": "degraded", "rows": 0, "elapsed_sec": elapsed}
+
         save_csv(df, str(filepath))
         elapsed = time.time() - start
         logger_module.log_collect(
@@ -149,14 +178,7 @@ def _collect_csv(
         return {"status": "success", "rows": len(df), "elapsed_sec": elapsed}
     except Exception as e:
         elapsed = time.time() - start
-        logger_module.log_collect(
-            task=name,
-            source=filepath.name,
-            status="error",
-            rows=0,
-            elapsed_sec=elapsed,
-            message=str(e),
-        )
+        _record_error(errors, name, str(e), suggestion)
         return {"status": "error", "error": str(e), "elapsed_sec": elapsed}
 
 
@@ -164,8 +186,14 @@ def _collect_json(
     name: str,
     fetch_fn: callable,
     filepath: Path,
+    errors: list[str],
+    suggestion: str = "check data source or use LLM",
 ) -> dict:
-    """Fetch data (dict/list), save to JSON, return a result dict."""
+    """Fetch data (dict/list), save to JSON, return a result dict.
+
+    On error or empty result the ``errors`` list is appended with a structured
+    message including the caller's ``suggestion`` (e.g. "use LLM search").
+    """
     start = time.time()
 
     if exists_today(str(filepath)):
@@ -182,6 +210,11 @@ def _collect_json(
 
     try:
         data = fetch_fn()
+        if not data:
+            elapsed = time.time() - start
+            _record_error(errors, name, "returned empty data", suggestion)
+            return {"status": "degraded", "elapsed_sec": elapsed}
+
         save_json(data, str(filepath))
         elapsed = time.time() - start
         logger_module.log_collect(
@@ -195,14 +228,7 @@ def _collect_json(
         return {"status": "success", "elapsed_sec": elapsed}
     except Exception as e:
         elapsed = time.time() - start
-        logger_module.log_collect(
-            task=name,
-            source=filepath.name,
-            status="error",
-            rows=0,
-            elapsed_sec=elapsed,
-            message=str(e),
-        )
+        _record_error(errors, name, str(e), suggestion)
         return {"status": "error", "error": str(e), "elapsed_sec": elapsed}
 
 
@@ -296,10 +322,14 @@ def run_close_mode() -> dict[str, dict]:
     """Collect end-of-day data: ETF snapshot, margin, north flow, NAV.
 
     Runs collect_if_missing for each item so already-captured files are skipped.
+    Errors are accumulated in a shared list and returned in the result dict
+    so the agent knows which sources failed and what to do.
 
     Returns:
         Dict mapping task name -> result dict with status/rows/elapsed_sec.
+        Always includes an "errors" key: list[str] of structured error messages.
     """
+    errors: list[str] = []
     results = {}
 
     # 1. ETF 全市场行情快照
@@ -307,6 +337,8 @@ def run_close_mode() -> dict[str, dict]:
         "etf_snapshot",
         get_etf_snapshot,
         _etf_snapshot_path(),
+        errors,
+        suggestion="use LLM to search current ETF market data",
     )
 
     # 2. 融资融券余额 (SH)
@@ -314,15 +346,20 @@ def run_close_mode() -> dict[str, dict]:
         "margin_sh",
         get_margin_sh,
         _margin_sh_path(),
+        errors,
+        suggestion="check akshare margin data or use LLM",
     )
 
     # 3. 北向资金近 3 月
     def fetch_north():
         return get_north_flow("沪股通", 3)
+
     results["north_flow"] = _collect_csv(
         "north_flow",
         fetch_north,
         _north_flow_path(),
+        errors,
+        suggestion="check north flow data source or use LLM",
     )
 
     from src.sector_aggregator import aggregate_by_sector, rank_sectors
@@ -339,44 +376,36 @@ def run_close_mode() -> dict[str, dict]:
             items = raw.get("data", {}).get("nav_history", {}).get("items", [])
             return pd.DataFrame(items)
 
-        nav_results[code] = _collect_csv(f"nav_{code}", fetch_nav, path)
+        nav_results[code] = _collect_csv(
+            f"nav_{code}",
+            fetch_nav,
+            path,
+            errors,
+            suggestion="check ttfund NAV interface or use LLM",
+        )
 
     results["nav"] = nav_results
 
     # 5. 行业板块聚合 — 基于 ETF 快照生成板块涨跌排名
-    # 注意：必须在 etf_snapshot 采集完后执行，使用 snapshot 的最新价/涨跌幅/成交额
     if results.get("etf_snapshot", {}).get("status") == "success":
         results["sector_rank"] = _collect_csv(
             "sector_rank",
             lambda: _run_sector_aggregation(),
             _sector_rank_path(),
+            errors,
+            suggestion="sector_rank requires etf_snapshot - check data pipeline",
         )
 
-    # 6. 美股收盘指数 — eastmoney 接口可能不可用，降级时返回空 DataFrame
+    # 6. 美股收盘指数 — eastmoney 接口不可用，降级返回空 DataFrame
     results["us_stock_index"] = _collect_csv(
         "us_stock_index",
         lambda: get_us_stock_index(),
         _us_index_path(),
+        errors,
+        suggestion="use LLM to search current US stock index data (Nasdaq/S&P/Dow)",
     )
 
-    # Summary
-    total = len(results)
-    success = sum(1 for v in results.values()
-                  if isinstance(v, dict) and v.get("status") == "success")
-    skipped = sum(1 for v in results.values()
-                  if isinstance(v, dict) and v.get("status") == "skipped")
-    errors = sum(1 for v in results.values()
-                 if isinstance(v, dict) and v.get("status") == "error")
-
-    logger_module.log_collect(
-        task="close_summary",
-        source="daily",
-        status="summary",
-        rows=total,
-        elapsed_sec=0,
-        message=f"close mode: {success} success, {skipped} skipped, {errors} errors",
-    )
-
+    results["errors"] = errors
     return results
 
 
@@ -455,11 +484,16 @@ def _run_tech_indicators_for_user_holdings() -> pd.DataFrame:
 # ── Mode: morning ──────────────────────────────────────────────────────────────
 
 def run_morning_mode() -> dict[str, dict]:
-    """Collect pre-market data: gold + macro, index valuations.
+    """Collect pre-market data: gold + macro, index valuations, premium rates.
+
+    Errors are accumulated in a shared list and returned in the result dict
+    so the agent knows which sources failed and what to do.
 
     Returns:
         Dict mapping task name -> result dict with status/rows/elapsed_sec.
+        Always includes an "errors" key: list[str] of structured error messages.
     """
+    errors: list[str] = []
     results = {}
 
     # 1. 黄金 + 宏观指标
@@ -467,6 +501,8 @@ def run_morning_mode() -> dict[str, dict]:
         "gold_macro",
         lambda: get_gold_info("all"),
         _gold_macro_path(),
+        errors,
+        suggestion="check ttfund gold/macro interface or use LLM",
     )
 
     # 2. 核心指数估值分位 — 遍历 INDEX_WATCH_LIST
@@ -477,7 +513,13 @@ def run_morning_mode() -> dict[str, dict]:
         def fetch_val(i=idx):
             return get_index_info(i, "all")
 
-        val_results[idx] = _collect_json(f"index_valuation_{idx}", fetch_val, path)
+        val_results[idx] = _collect_json(
+            f"index_valuation_{idx}",
+            fetch_val,
+            path,
+            errors,
+            suggestion=f"check ttfund index valuation for {idx} or use LLM",
+        )
 
     results["index_valuation"] = val_results
 
@@ -495,6 +537,8 @@ def run_morning_mode() -> dict[str, dict]:
             f"premium_{code}",
             fetch_premium,
             path,
+            errors,
+            suggestion=f"premium for {code} requires yesterday's snapshot; run close mode first",
         )
 
     # 4. 技术指标 — 基于 NAV 历史计算 MA/RSI/ATR/Bollinger/MACD
@@ -509,26 +553,11 @@ def run_morning_mode() -> dict[str, dict]:
             f"tech_indicator_{code}",
             fetch_tech,
             path,
+            errors,
+            suggestion=f"check ttfund NAV history for {code} or use LLM",
         )
 
-    # Summary
-    total = len(results)
-    success = sum(1 for v in results.values()
-                  if isinstance(v, dict) and v.get("status") == "success")
-    skipped = sum(1 for v in results.values()
-                  if isinstance(v, dict) and v.get("status") == "skipped")
-    errors = sum(1 for v in results.values()
-                 if isinstance(v, dict) and v.get("status") == "error")
-
-    logger_module.log_collect(
-        task="morning_summary",
-        source="daily",
-        status="summary",
-        rows=total,
-        elapsed_sec=0,
-        message=f"morning mode: {success} success, {skipped} skipped, {errors} errors",
-    )
-
+    results["errors"] = errors
     return results
 
 
@@ -562,6 +591,12 @@ def main() -> None:
                       if isinstance(v, dict) and v.get("status") == "success")
         total = len(result)
         print(f"Done: {success}/{total} tasks succeeded.")
+
+    # Always print errors so agent can see them
+    if result.get("errors"):
+        print(f"\n[ERRORS] {len(result['errors'])} issue(s) detected:")
+        for err in result["errors"]:
+            print(f"  - {err}")
 
 
 if __name__ == "__main__":
