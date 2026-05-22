@@ -19,6 +19,7 @@ from src.akshare_client import (
     get_etf_snapshot,
     get_margin_sh,
     get_north_flow,
+    get_us_stock_index,
 )
 from src.storage import save_csv, save_json, exists_today, load_csv
 from src.ttfund_client import get_nav_history, get_gold_info, get_index_info
@@ -69,6 +70,11 @@ def _gold_macro_path() -> Path:
 
 def _index_valuation_path(idx: str) -> Path:
     return _daily_dir() / f"index_valuation_{idx}_{today()}.json"
+
+
+def _us_index_path() -> Path:
+    """Return path for US stock index data (close mode output)."""
+    return _daily_dir() / f"us_stock_index_{today()}.csv"
 
 
 def _sector_rank_path() -> Path:
@@ -323,6 +329,13 @@ def run_close_mode() -> dict[str, dict]:
             lambda: _run_sector_aggregation(),
             _sector_rank_path(),
         )
+
+    # 6. 美股收盘指数 — eastmoney 接口可能不可用，降级时返回空 DataFrame
+    results["us_stock_index"] = _collect_csv(
+        "us_stock_index",
+        lambda: get_us_stock_index(),
+        _us_index_path(),
+    )
 
     # Summary
     total = len(results)

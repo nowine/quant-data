@@ -19,6 +19,10 @@ Public market data functions:
 - get_gdp()             : China GDP (2160h TTL)
 - get_industrial()       : China industrial production YoY (720h TTL)
 - get_industry_alloc()   : Fund industry allocation (2160h TTL)
+- get_fx_rate()         : USD/CNY FX rate, degrade→LLM fallback (24h TTL)
+- get_futures_basis()  : CSI futures basis, degrade→LLM fallback (24h TTL)
+- get_commodity_price(): Commodity prices, degrade→LLM fallback (24h TTL)
+- get_stock_board_industry(): Industry board ranking (24h TTL)
 """
 
 import os
@@ -353,4 +357,87 @@ def get_industry_alloc(year: int) -> pd.DataFrame:
     """
     return _with_cache(
         f"macro_industry_alloc_{year}", 2160, lambda: ak.fund_portfolio_industry_allocation_em(year)
+    )
+
+
+def _degrade_to_empty(fetch_fn: callable, api_name: str) -> pd.DataFrame:
+    """Try fetch_fn, log warning and return empty DataFrame on failure.
+
+    Used for APIs that are blocked on Tencent Cloud (US stock, FX, etc.)
+    so the caller always gets a DataFrame (possibly empty) instead of an exception.
+    """
+    try:
+        return fetch_fn()
+    except Exception as e:
+        logger_module.log_collect(
+            task=api_name,
+            source="akshare_client",
+            status="degraded",
+            rows=0,
+            elapsed_sec=0,
+            message=f"akshare {api_name} unavailable on this network, LLM search recommended: {e}",
+        )
+        return pd.DataFrame()
+
+
+def get_fx_rate() -> pd.DataFrame:
+    """FX exchange rate (USD/CNY).
+
+    Wraps ``akshare.currency_history()``.
+    Cache TTL: 24 hours.
+
+    Returns:
+        DataFrame with exchange rate data, or empty DataFrame if unavailable.
+        If empty, use LLM to search for current USD/CNY rate.
+    """
+    return _with_cache(
+        "fx_usd_cny", 24,
+        lambda: _degrade_to_empty(lambda: ak.currency_history(), "fx_rate"),
+    )
+
+
+def get_futures_basis() -> pd.DataFrame:
+    """CSI futures basis (升贴水) data.
+
+    Wraps ``akshare.futures_roll_price()``.
+    Cache TTL: 24 hours.
+
+    Returns:
+        DataFrame with futures basis data, or empty DataFrame if unavailable.
+        If empty, use LLM to search for current basis data.
+    """
+    return _with_cache(
+        "futures_basis", 24,
+        lambda: _degrade_to_empty(lambda: ak.futures_roll_price(), "futures_basis"),
+    )
+
+
+def get_commodity_price() -> pd.DataFrame:
+    """Commodity futures prices (crude oil, copper, gold).
+
+    Wraps ``akshare.futures_child_table()``.
+    Cache TTL: 24 hours.
+
+    Returns:
+        DataFrame with commodity prices, or empty if unavailable.
+        If empty, use LLM to search for current prices.
+    """
+    return _with_cache(
+        "commodity_price", 24,
+        lambda: _degrade_to_empty(lambda: ak.futures_child_table(), "commodity_price"),
+    )
+
+
+def get_stock_board_industry() -> pd.DataFrame:
+    """Industry sector board ranking (concept/industry板块涨跌).
+
+    Wraps ``akshare.stock_board_industry_name_em()``.
+    Cache TTL: 24 hours.
+
+    Returns:
+        DataFrame with industry board data (板块名称, 涨跌幅, 成交额等).
+    """
+    return _with_cache(
+        "stock_board_industry", 24,
+        lambda: _degrade_to_empty(lambda: ak.stock_board_industry_name_em(), "stock_board_industry"),
     )
