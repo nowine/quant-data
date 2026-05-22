@@ -21,8 +21,25 @@ from src.akshare_client import (
     get_north_flow,
     get_us_stock_index,
 )
-from src.storage import save_csv, save_json, exists_today, load_csv
 from src.ttfund_client import get_nav_history, get_gold_info, get_index_info
+from src.storage import save_csv, save_json, exists_today, load_csv
+from src.tech_indicator import (
+    calc_ma,
+    calc_rsi,
+    calc_atr,
+    calc_volume_ratio,
+    calc_bollinger,
+    calc_macd,
+    calc_premium_rate,
+)
+from src.portfolio_calc import (
+    calc_sharpe,
+    calc_volatility,
+    calc_max_drawdown,
+    calc_beta,
+    calc_correlation,
+    calc_contribution,
+)
 
 
 # ── Clock stub ─────────────────────────────────────────────────────────────────
@@ -85,6 +102,11 @@ def _sector_rank_path() -> Path:
 def _premium_path(code: str) -> Path:
     """Return path for ETF premium rate output."""
     return _daily_dir() / f"premium_{code}_{today()}.csv"
+
+
+def _tech_indicator_path(code: str) -> Path:
+    """Return path for ETF technical indicators output."""
+    return _daily_dir() / f"tech_indicator_{code}_{today()}.csv"
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -358,6 +380,78 @@ def run_close_mode() -> dict[str, dict]:
     return results
 
 
+def _run_tech_indicators_for_user_holdings() -> pd.DataFrame:
+    """Compute technical indicators for each user holding.
+
+    Fetches NAV history from ttfund, computes MA20/60, RSI, ATR, Bollinger, MACD.
+    Returns empty DataFrame if no data available.
+    """
+    rows = []
+    for holding in config.USER_HOLDINGS:
+        code = holding["code"]
+        name = holding["name"]
+        sector = holding["sector"]
+
+        # Get NAV history (annual) for OHLCV approximation
+        try:
+            raw = get_nav_history(code, "y")
+            items = raw.get("data", {}).get("nav_history", {}).get("items", [])
+            if not items:
+                continue
+            nav_df = pd.DataFrame(items)
+            # ttfund nav columns: DWJZ (current nav), DWJZ_ZD (daily change), JZZM (NAV multiplier)
+            # We use DWJZ as price-like series for technical indicators
+            if "DWJZ" not in nav_df.columns:
+                continue
+
+            # Sort by date ascending for indicator calculation
+            nav_df["_dt"] = pd.to_datetime(nav_df.get("JZRQ", nav_df.index), errors="coerce")
+            nav_df = nav_df.dropna(subset=["_dt"]).sort_values("_dt")
+            price_series = nav_df["DWJZ"].astype(float)
+
+            indicators = {
+                "ma20": calc_ma(price_series, 20),
+                "ma60": calc_ma(price_series, 60),
+                "rsi14": calc_rsi(price_series, 14),
+                "atr14": calc_atr(price_series, 14),
+            }
+            boll = calc_bollinger(price_series, 20)
+            macd_val = calc_macd(price_series)
+            vol_ratio = calc_volume_ratio(price_series, 20)
+
+            # Use latest values
+            latest_price = float(price_series.iloc[-1])
+            rows.append({
+                "code": code,
+                "name": name,
+                "sector": sector,
+                "price": latest_price,
+                "ma20": round(indicators["ma20"][-1] if len(indicators["ma20"]) else float("nan"), 4),
+                "ma60": round(indicators["ma60"][-1] if len(indicators["ma60"]) else float("nan"), 4),
+                "rsi14": round(indicators["rsi14"][-1] if len(indicators["rsi14"]) else float("nan"), 4),
+                "atr14": round(indicators["atr14"][-1] if len(indicators["atr14"]) else float("nan"), 4),
+                "boll_upper": round(boll["upper"][-1] if len(boll["upper"]) else float("nan"), 4),
+                "boll_mid": round(boll["mid"][-1] if len(boll["mid"]) else float("nan"), 4),
+                "boll_lower": round(boll["lower"][-1] if len(boll["lower"]) else float("nan"), 4),
+                "macd_dif": round(macd_val["dif"][-1] if len(macd_val["dif"]) else float("nan"), 4),
+                "macd_dea": round(macd_val["dea"][-1] if len(macd_val["dea"]) else float("nan"), 4),
+                "macd_hist": round(macd_val["hist"][-1] if len(macd_val["hist"]) else float("nan"), 4),
+                "volume_ratio": round(vol_ratio[-1] if len(vol_ratio) else float("nan"), 4),
+            })
+        except Exception as e:
+            logger_module.log_collect(
+                task=f"tech_indicator_{code}",
+                source="nav_history",
+                status="error",
+                rows=0,
+                elapsed_sec=0,
+                message=f"tech indicators failed for {code}: {e}",
+            )
+            continue
+
+    return pd.DataFrame(rows)
+
+
 # ── Mode: morning ──────────────────────────────────────────────────────────────
 
 def run_morning_mode() -> dict[str, dict]:
@@ -400,6 +494,20 @@ def run_morning_mode() -> dict[str, dict]:
         results[f"premium_{code}"] = _collect_csv(
             f"premium_{code}",
             fetch_premium,
+            path,
+        )
+
+    # 4. 技术指标 — 基于 NAV 历史计算 MA/RSI/ATR/Bollinger/MACD
+    for holding in config.USER_HOLDINGS:
+        code = holding["code"]
+        path = _tech_indicator_path(code)
+
+        def fetch_tech(c=code):
+            return _run_tech_indicators_for_user_holdings()
+
+        results[f"tech_indicator_{code}"] = _collect_csv(
+            f"tech_indicator_{code}",
+            fetch_tech,
             path,
         )
 
