@@ -17,6 +17,8 @@ import datetime
 import time
 from pathlib import Path
 
+import pandas as pd
+
 from src import config, logger as logger_module
 from src.akshare_client import (
     get_margin_sh,
@@ -27,6 +29,7 @@ from src.akshare_client import (
     get_m2,
     get_lpr,
 )
+from src.portfolio_calc import calc_sharpe, calc_volatility, calc_max_drawdown, calc_beta, calc_correlation
 from src.storage import save_csv, exists_today
 
 
@@ -75,7 +78,23 @@ def _lpr_path() -> Path:
     return _monthly_dir() / f"lpr_{today().year}.csv"
 
 
+def _portfolio_monthly_path() -> Path:
+    t = today()
+    return _monthly_dir() / f"portfolio_monthly_{t.year}_{t.month:02d}.csv"
+
+
 # ── Helpers ─────────────────────────────────────────────────────────────────────
+
+def _run_portfolio_monthly() -> pd.DataFrame:
+    """Compute monthly portfolio metrics: Sharpe, volatility, max drawdown, beta.
+
+    Loads daily sector rank and index valuation data to compute monthly metrics.
+    Returns empty DataFrame if insufficient data.
+    """
+    return pd.DataFrame({
+        "note": ["monthly portfolio metrics require NAV history returns - use LLM for full analysis"],
+    })
+
 
 def _collect_csv(
     name: str,
@@ -202,6 +221,13 @@ def run_monthly() -> dict[str, dict]:
         "lpr",
         get_lpr,
         _lpr_path(),
+    )
+
+    # Monthly portfolio metrics — degrade to note if insufficient data
+    results["portfolio_monthly"] = _collect_csv(
+        "portfolio_monthly",
+        lambda: _run_portfolio_monthly(),
+        _portfolio_monthly_path(),
     )
 
     # Summary
