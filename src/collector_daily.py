@@ -20,7 +20,7 @@ from src.akshare_client import (
     get_margin_sh,
     get_north_flow,
 )
-from src.storage import save_csv, save_json, exists_today
+from src.storage import save_csv, save_json, exists_today, load_csv
 from src.ttfund_client import get_nav_history, get_gold_info, get_index_info
 
 
@@ -69,6 +69,16 @@ def _gold_macro_path() -> Path:
 
 def _index_valuation_path(idx: str) -> Path:
     return _daily_dir() / f"index_valuation_{idx}_{today()}.json"
+
+
+def _sector_rank_path() -> Path:
+    """Return path for sector rank aggregation output."""
+    return _daily_dir() / f"sector_rank_{today()}.csv"
+
+
+def _premium_path(code: str) -> Path:
+    """Return path for ETF premium rate output."""
+    return _daily_dir() / f"premium_{code}_{today()}.csv"
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -168,6 +178,90 @@ def _collect_json(
         return {"status": "error", "error": str(e), "elapsed_sec": elapsed}
 
 
+def _run_sector_aggregation() -> pd.DataFrame:
+    """Load today's ETF snapshot and produce sector rank DataFrame.
+
+    This is called after etf_snapshot has been collected (cache confirmed hit).
+    Returns a DataFrame with sector-level aggregated statistics.
+    """
+    snapshot_path = str(_etf_snapshot_path())
+    snapshot = load_csv(snapshot_path)
+    agg = aggregate_by_sector(snapshot, config.SECTOR_MAPPING, code_col="代码", change_col="涨跌幅", volume_col="成交额")
+    return rank_sectors(agg)
+
+
+def _run_premium_rate_for_user_holdings() -> pd.DataFrame:
+    """Compute ETF premium/discount rates for user holdings.
+
+    Requires:
+    - Yesterday's close-mode etf_snapshot (for snapshot price)
+    - Today's NAV from ttfund get_nav_history
+
+    If yesterday's snapshot is missing (e.g. morning mode run without prior close),
+    logs a warning and returns an empty DataFrame.
+    """
+    from src.tech_indicator import calc_premium_rate
+    from src.storage import load_csv
+
+    rows = []
+    yesterday = today() - datetime.timedelta(days=1)
+    snapshot_path = str(_daily_dir() / f"etf_snapshot_{yesterday}.csv")
+
+    snapshot_df = None
+    try:
+        snapshot_df = load_csv(snapshot_path)
+    except FileNotFoundError:
+        logger_module.log_collect(
+            task="premium_rate",
+            source="sector_rank",
+            status="error",
+            rows=0,
+            elapsed_sec=0,
+            message=f"Yesterday's snapshot not found ({snapshot_path}). Run close mode first to collect ETF snapshot before morning mode.",
+        )
+        return pd.DataFrame()
+
+    for holding in config.USER_HOLDINGS:
+        code = holding["code"]
+        name = holding["name"]
+        sector = holding["sector"]
+        # snapshot price: find row by code
+        snapshot_row = snapshot_df[snapshot_df["代码"] == code]
+        if snapshot_row.empty:
+            continue
+        snapshot_price = float(snapshot_row.iloc[0]["最新价"])
+
+        # nav: get from ttfund
+        try:
+            raw = get_nav_history(code, "y")
+            items = raw.get("data", {}).get("nav_history", {}).get("items", [])
+            if not items:
+                continue
+            latest_nav = float(items[0]["DWJZ"])
+            premium = calc_premium_rate(snapshot_price, latest_nav)
+            rows.append({
+                "code": code,
+                "name": name,
+                "sector": sector,
+                "snapshot_price": snapshot_price,
+                "nav": latest_nav,
+                "premium_rate": round(premium, 6),
+                "premium_pct": round(premium * 100, 4),
+            })
+        except Exception as e:
+            logger_module.log_collect(
+                task=f"premium_{code}",
+                source="nav_history",
+                status="error",
+                rows=0,
+                elapsed_sec=0,
+                message=f"nav fetch failed for {code}: {e}",
+            )
+            continue
+
+    return pd.DataFrame(rows)
+
+
 # ── Mode: close ────────────────────────────────────────────────────────────────
 
 def run_close_mode() -> dict[str, dict]:
@@ -203,6 +297,9 @@ def run_close_mode() -> dict[str, dict]:
         _north_flow_path(),
     )
 
+    from src.sector_aggregator import aggregate_by_sector, rank_sectors
+    from src.config import SECTOR_MAPPING
+
     # 4. 核心 ETF 净值 — 遍历 ETF_WATCH_LIST
     nav_results = {}
     for etf in config.ETF_WATCH_LIST:
@@ -217,6 +314,15 @@ def run_close_mode() -> dict[str, dict]:
         nav_results[code] = _collect_csv(f"nav_{code}", fetch_nav, path)
 
     results["nav"] = nav_results
+
+    # 5. 行业板块聚合 — 基于 ETF 快照生成板块涨跌排名
+    # 注意：必须在 etf_snapshot 采集完后执行，使用 snapshot 的最新价/涨跌幅/成交额
+    if results.get("etf_snapshot", {}).get("status") == "success":
+        results["sector_rank"] = _collect_csv(
+            "sector_rank",
+            lambda: _run_sector_aggregation(),
+            _sector_rank_path(),
+        )
 
     # Summary
     total = len(results)
@@ -267,6 +373,22 @@ def run_morning_mode() -> dict[str, dict]:
         val_results[idx] = _collect_json(f"index_valuation_{idx}", fetch_val, path)
 
     results["index_valuation"] = val_results
+
+    # 3. 用户持仓 ETF 溢价折价率
+    # 注意：依赖昨日 close 模式采集的 ETF 快照数据
+    # 如果快照缺失会正常报错并跳过（log_collect 已处理）
+    for holding in config.USER_HOLDINGS:
+        code = holding["code"]
+        path = _premium_path(code)
+
+        def fetch_premium(c=code):
+            return _run_premium_rate_for_user_holdings()
+
+        results[f"premium_{code}"] = _collect_csv(
+            f"premium_{code}",
+            fetch_premium,
+            path,
+        )
 
     # Summary
     total = len(results)

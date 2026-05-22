@@ -7,6 +7,7 @@ Public market data functions:
 - get_etf_snapshot()    : ETF real-time snapshot (sina, 24h TTL)
 - get_north_flow()       : North-bound capital flow (hsgt, 168h TTL)
 - get_etf_history()      : ETF historical k-line with sina→em fallback (24h TTL)
+- get_us_stock_index()  : US major indices (Nasdaq/S&P/Dow Jones) via stock_us_spot_em (24h TTL)
 - get_etf_scale()        : ETF scale on SSE (sse, 168h TTL)
 - get_margin_sh()        : Shanghai margin trading (sh, 24h TTL)
 - get_pmi()             : China manufacturing PMI (72h TTL)
@@ -28,6 +29,21 @@ import pandas as pd
 
 from src.logger import log_collect
 from src.storage import save_csv
+
+
+_MIN_INTERVAL = 5.0  # seconds between consecutive calls (avoids getting blocked)
+_last_call_time: float = 0.0
+
+
+def _rate_limit():
+    """Sleep to meet the minimum interval between API calls."""
+    global _last_call_time
+    now = time.time()
+    if _last_call_time > 0:
+        elapsed = now - _last_call_time
+        if elapsed < _MIN_INTERVAL:
+            time.sleep(_MIN_INTERVAL - elapsed)
+    _last_call_time = time.time()
 
 
 def _with_cache(cache_key: str, ttl_hours: int, fetch_fn: callable) -> pd.DataFrame:
@@ -117,7 +133,7 @@ def get_etf_snapshot() -> pd.DataFrame:
     Returns:
         DataFrame with ETF listing data.
     """
-    return _with_cache("etf_snapshot", 24, lambda: ak.fund_etf_category_sina())
+    return _with_cache("etf_snapshot", 24, lambda: (_rate_limit(), ak.fund_etf_category_sina())[-1])
 
 
 def get_north_flow(symbol: str = "北向资金", months: int = 3) -> pd.DataFrame:
@@ -136,7 +152,7 @@ def get_north_flow(symbol: str = "北向资金", months: int = 3) -> pd.DataFram
     return _with_cache(
         f"north_flow_{symbol}_{months}",
         168,
-        lambda: ak.stock_hsgt_hist_em(symbol=symbol),
+        lambda: (_rate_limit(), ak.stock_hsgt_hist_em(symbol=symbol))[-1],
     )
 
 
@@ -165,16 +181,42 @@ def get_etf_history(code: str) -> pd.DataFrame:
     """
 
     def _fetch():
-        # Sina requires exchange prefix: sh510300 or sz159919
+        _rate_limit()
         prefix = _etf_prefix(code)
         symbol = f"{prefix}{code}"
         try:
             return ak.fund_etf_hist_sina(symbol=symbol)
         except Exception:
             # Fallback to eastmoney (no prefix needed)
+            _rate_limit()
             return ak.fund_etf_hist_em(symbol=code)
 
     return _with_cache(f"etf_history_{code}", 24, _fetch)
+
+
+def get_us_stock_index() -> pd.DataFrame:
+    """US stock market indices (Nasdaq, S&P500, Dow Jones) close prices.
+
+    Wraps ``akshare.stock_us_spot_em()``.
+    Cache TTL: 24 hours (updated once per trading day).
+
+    Returns:
+        DataFrame with 美股实时行情, filtered to major indices:
+        纳斯达克综合指数, 标普500指数, 道琼斯工业指数.
+    """
+
+    def _fetch():
+        _rate_limit()
+        df = ak.stock_us_spot_em()
+        # Filter to known major US indices
+        index_names = ["纳斯达克综合指数", "标普500指数", "道琼斯工业指数"]
+        major = df[df["名称"].isin(index_names)]
+        if major.empty:
+            # Fallback: return all rows if index names don't match
+            return df
+        return major
+
+    return _with_cache("us_stock_index", 24, _fetch)
 
 
 def get_etf_scale() -> pd.DataFrame:
