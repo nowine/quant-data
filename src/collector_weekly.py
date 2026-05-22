@@ -17,6 +17,7 @@ from pathlib import Path
 import pandas as pd
 
 from src import config, logger as logger_module
+from src.portfolio_calc import calc_contribution, calc_correlation, calc_beta
 from src.akshare_client import (
     get_etf_scale,
     get_north_flow,
@@ -24,6 +25,23 @@ from src.akshare_client import (
 )
 from src.portfolio_calc import calc_contribution, calc_correlation, calc_beta
 from src.storage import save_csv, exists_today
+
+
+# ── Error registry ─────────────────────────────────────────────────────────────
+
+
+def _record_error(errors: list[str], name: str, detail: str, suggestion: str) -> None:
+    """Append a structured error to the shared errors list and log it."""
+    msg = f"{name}: {detail}; suggestion: {suggestion}"
+    errors.append(msg)
+    logger_module.log_collect(
+        task=name,
+        source=name.split("_")[0],
+        status="error",
+        rows=0,
+        elapsed_sec=0,
+        message=msg,
+    )
 
 
 # ── Clock stub ─────────────────────────────────────────────────────────────────
@@ -151,10 +169,13 @@ def _collect_csv(
     name: str,
     fetch_fn: callable,
     filepath: Path,
+    errors: list[str],
+    suggestion: str = "check data source or use LLM",
 ) -> dict:
     """Fetch data, save to CSV, return a result dict.
 
-    Uses exists_today so partial reruns skip already-captured files.
+    On error or empty result the ``errors`` list is appended with a structured
+    message including the caller's ``suggestion``.
     """
     start = time.time()
 
@@ -172,6 +193,11 @@ def _collect_csv(
 
     try:
         df = fetch_fn()
+        if df.empty:
+            elapsed = time.time() - start
+            _record_error(errors, name, "returned empty data", suggestion)
+            return {"status": "degraded", "rows": 0, "elapsed_sec": elapsed}
+
         save_csv(df, str(filepath))
         elapsed = time.time() - start
         logger_module.log_collect(
@@ -185,14 +211,7 @@ def _collect_csv(
         return {"status": "success", "rows": len(df), "elapsed_sec": elapsed}
     except Exception as e:
         elapsed = time.time() - start
-        logger_module.log_collect(
-            task=name,
-            source=filepath.name,
-            status="error",
-            rows=0,
-            elapsed_sec=elapsed,
-            message=str(e),
-        )
+        _record_error(errors, name, str(e), suggestion)
         return {"status": "error", "error": str(e), "elapsed_sec": elapsed}
 
 
@@ -201,9 +220,14 @@ def _collect_csv(
 def run_weekly() -> dict[str, dict]:
     """Collect weekly data: ETF scale, north flow, industry allocation.
 
+    Errors are accumulated in a shared list and returned in the result dict
+    so the agent knows which sources failed and what to do.
+
     Returns:
         Dict mapping task name -> result dict with status/rows/elapsed_sec.
+        Always includes an "errors" key: list[str] of structured error messages.
     """
+    errors: list[str] = []
     results = {}
 
     # 1. ETF 规模
@@ -211,6 +235,8 @@ def run_weekly() -> dict[str, dict]:
         "etf_scale",
         get_etf_scale,
         _etf_scale_path(),
+        errors,
+        suggestion="check akshare ETF scale (SSE) or use LLM",
     )
 
     # 2. 北向资金周度
@@ -218,6 +244,8 @@ def run_weekly() -> dict[str, dict]:
         "north_flow_week",
         lambda: get_north_flow("沪深股通", 1),
         _north_flow_week_path(),
+        errors,
+        suggestion="check north flow data source or use LLM",
     )
 
     # 3. 行业配置
@@ -226,6 +254,8 @@ def run_weekly() -> dict[str, dict]:
         "industry_alloc",
         lambda: get_industry_alloc(year),
         _industry_alloc_path(),
+        errors,
+        suggestion="check akshare industry allocation or use LLM",
     )
 
     # 4. 板块排名周变化 — 本周 vs 上周排名变动矩阵
@@ -235,6 +265,8 @@ def run_weekly() -> dict[str, dict]:
             "sector_rank_change",
             lambda: _compute_sector_rank_change(recent_dfs),
             _sector_rank_change_path(),
+            errors,
+            suggestion="sector_rank_change requires daily sector_rank data; run daily collector first",
         )
 
     # 5. 组合周度指标 — 贡献度/相关性/Beta（降级，依赖完整 NAV 历史）
@@ -242,26 +274,11 @@ def run_weekly() -> dict[str, dict]:
         "portfolio_weekly",
         lambda: _run_portfolio_weekly(),
         _portfolio_weekly_path(),
+        errors,
+        suggestion="portfolio weekly metrics require NAV history returns; use LLM for full analysis",
     )
 
-    # Summary
-    total = len(results)
-    success = sum(1 for v in results.values()
-                  if isinstance(v, dict) and v.get("status") == "success")
-    skipped = sum(1 for v in results.values()
-                  if isinstance(v, dict) and v.get("status") == "skipped")
-    errors = sum(1 for v in results.values()
-                 if isinstance(v, dict) and v.get("status") == "error")
-
-    logger_module.log_collect(
-        task="weekly_summary",
-        source="weekly",
-        status="summary",
-        rows=total,
-        elapsed_sec=0,
-        message=f"weekly: {success} success, {skipped} skipped, {errors} errors",
-    )
-
+    results["errors"] = errors
     return results
 
 
@@ -278,6 +295,12 @@ def main() -> None:
                   if isinstance(v, dict) and v.get("status") == "success")
     total = len(result)
     print(f"Done: {success}/{total} tasks succeeded.")
+
+    # Always print errors so agent can see them
+    if result.get("errors"):
+        print(f"\n[ERRORS] {len(result['errors'])} issue(s) detected:")
+        for err in result["errors"]:
+            print(f"  - {err}")
 
 
 if __name__ == "__main__":

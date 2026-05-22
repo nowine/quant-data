@@ -33,6 +33,23 @@ from src.portfolio_calc import calc_sharpe, calc_volatility, calc_max_drawdown, 
 from src.storage import save_csv, exists_today
 
 
+# ── Error registry ─────────────────────────────────────────────────────────────
+
+
+def _record_error(errors: list[str], name: str, detail: str, suggestion: str) -> None:
+    """Append a structured error to the shared errors list and log it."""
+    msg = f"{name}: {detail}; suggestion: {suggestion}"
+    errors.append(msg)
+    logger_module.log_collect(
+        task=name,
+        source=name.split("_")[0],
+        status="error",
+        rows=0,
+        elapsed_sec=0,
+        message=msg,
+    )
+
+
 # ── Clock stub ─────────────────────────────────────────────────────────────────
 
 def today() -> datetime.date:
@@ -100,8 +117,14 @@ def _collect_csv(
     name: str,
     fetch_fn: callable,
     filepath: Path,
+    errors: list[str],
+    suggestion: str = "check data source or use LLM",
 ) -> dict:
-    """Fetch data, save to CSV, return a result dict."""
+    """Fetch data, save to CSV, return a result dict.
+
+    On error or empty result the ``errors`` list is appended with a structured
+    message including the caller's ``suggestion``.
+    """
     start = time.time()
 
     if exists_today(str(filepath)):
@@ -118,6 +141,11 @@ def _collect_csv(
 
     try:
         df = fetch_fn()
+        if df.empty:
+            elapsed = time.time() - start
+            _record_error(errors, name, "returned empty data", suggestion)
+            return {"status": "degraded", "rows": 0, "elapsed_sec": elapsed}
+
         save_csv(df, str(filepath))
         elapsed = time.time() - start
         logger_module.log_collect(
@@ -131,14 +159,7 @@ def _collect_csv(
         return {"status": "success", "rows": len(df), "elapsed_sec": elapsed}
     except Exception as e:
         elapsed = time.time() - start
-        logger_module.log_collect(
-            task=name,
-            source=filepath.name,
-            status="error",
-            rows=0,
-            elapsed_sec=elapsed,
-            message=str(e),
-        )
+        _record_error(errors, name, str(e), suggestion)
         return {"status": "error", "error": str(e), "elapsed_sec": elapsed}
 
 
@@ -176,51 +197,70 @@ def get_macro_data() -> dict:
 def run_monthly() -> dict[str, dict]:
     """Collect monthly macro data.
 
+    Errors are accumulated in a shared list and returned in the result dict
+    so the agent knows which sources failed and what to do.
+
     Returns:
         Dict mapping task name -> result dict with status/rows/elapsed_sec.
+        Always includes an "errors" key: list[str] of structured error messages.
     """
+    errors: list[str] = []
     results = {}
 
     results["margin_sh"] = _collect_csv(
         "margin_sh",
         get_margin_sh,
         _margin_sh_path(),
+        errors,
+        suggestion="check akshare margin data or use LLM",
     )
 
     results["cpi"] = _collect_csv(
         "cpi",
         get_cpi,
         _cpi_path(),
+        errors,
+        suggestion="check akshare CPI data or use LLM",
     )
 
     results["ppi"] = _collect_csv(
         "ppi",
         get_ppi,
         _ppi_path(),
+        errors,
+        suggestion="check akshare PPI data or use LLM",
     )
 
     results["pmi"] = _collect_csv(
         "pmi",
         get_pmi,
         _pmi_path(),
+        errors,
+        suggestion="check akshare PMI data or use LLM",
     )
 
     results["gdp"] = _collect_csv(
         "gdp",
         get_gdp,
         _gdp_path(),
+        errors,
+        suggestion="check akshare GDP data or use LLM",
     )
 
     results["m2"] = _collect_csv(
         "m2",
         get_m2,
         _m2_path(),
+        errors,
+        suggestion="check akshare M2 data or use LLM",
     )
 
     results["lpr"] = _collect_csv(
         "lpr",
         get_lpr,
         _lpr_path(),
+        errors,
+        suggestion="check akshare LPR data or use LLM",
     )
 
     # Monthly portfolio metrics — degrade to note if insufficient data
@@ -228,26 +268,11 @@ def run_monthly() -> dict[str, dict]:
         "portfolio_monthly",
         lambda: _run_portfolio_monthly(),
         _portfolio_monthly_path(),
+        errors,
+        suggestion="portfolio monthly metrics require NAV history returns; use LLM for full analysis",
     )
 
-    # Summary
-    total = len(results)
-    success = sum(1 for v in results.values()
-                  if isinstance(v, dict) and v.get("status") == "success")
-    skipped = sum(1 for v in results.values()
-                  if isinstance(v, dict) and v.get("status") == "skipped")
-    errors = sum(1 for v in results.values()
-                 if isinstance(v, dict) and v.get("status") == "error")
-
-    logger_module.log_collect(
-        task="monthly_summary",
-        source="monthly",
-        status="summary",
-        rows=total,
-        elapsed_sec=0,
-        message=f"monthly: {success} success, {skipped} skipped, {errors} errors",
-    )
-
+    results["errors"] = errors
     return results
 
 
@@ -260,6 +285,12 @@ def main() -> None:
                   if isinstance(v, dict) and v.get("status") == "success")
     total = len(result)
     print(f"Done: {success}/{total} tasks succeeded.")
+
+    # Always print errors so agent can see them
+    if result.get("errors"):
+        print(f"\n[ERRORS] {len(result['errors'])} issue(s) detected:")
+        for err in result["errors"]:
+            print(f"  - {err}")
 
 
 if __name__ == "__main__":
