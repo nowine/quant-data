@@ -26,6 +26,7 @@ Public market data functions:
 """
 
 import os
+import socket
 import time
 
 import akshare as ak
@@ -37,6 +38,10 @@ from src.storage import save_csv
 
 _MIN_INTERVAL = 5.0  # seconds between consecutive calls (avoids getting blocked)
 _last_call_time: float = 0.0
+
+# Set default socket timeout for all HTTP calls (akshare / urllib3 / requests).
+# Prevents indefinitely hanging connections on slow/unreachable hosts.
+socket.setdefaulttimeout(30.0)
 
 
 def _rate_limit():
