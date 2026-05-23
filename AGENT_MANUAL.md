@@ -144,7 +144,10 @@ AkShare 数据源在 `src/akshare_client.py`，通过 `get_akshare_data()` 统�
 from src.akshare_client import get_etf_snapshot, get_etf_history, get_etf_scale
 
 # ETF 实时快照（当日列表）
-df = get_etf_snapshot()            # fund_etf_category_sina，缓存当日
+df = get_etf_snapshot()            # fund_etf_category_ths，覆盖 1576 只 ETF
+                                   # 代码列为纯数字（如 "510300"），与 config 直接匹配
+                                   # 注意：无成交额/成交量字段（THS 只提供净值+增长率）
+                                   # 缓存当日，cache key: etf_snapshot_ths
 
 # ETF 历史行情（K线）
 df = get_etf_history("510300")     # 首选 fund_etf_hist_sina，自动降级 fund_etf_hist_em
