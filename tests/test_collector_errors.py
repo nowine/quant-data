@@ -201,7 +201,7 @@ class TestRunCloseModeErrors:
         monkeypatch.setattr(cd, "today", lambda: datetime.date(2026, 5, 20))
         # Mock akshare internals so no real network calls
         import akshare as ak
-        ak.fund_etf_category_sina = lambda: pd.DataFrame({"代码": ["510300"], "最新价": [3.8], "涨跌幅": [0.5], "成交额": [1e8]})
+        ak.fund_etf_category_ths = lambda: pd.DataFrame({"序号":[1],"基金代码":["510300"],"基金名称":["test"],"当前-单位净值":[3.8],"当前-累计净值":[3.8],"前一日-单位净值":[3.7],"前一日-累计净值":[3.7],"增长值":[0.1],"增长率":[2.7],"赎回状态":["开放"],"申购状态":["开放"],"最新-交易日":["2026-05-20"],"最新-单位净值":[3.8],"最新-累计净值":[3.8],"基金类型":["股票型"],"查询日期":["2026-05-20"]})
         ak.macro_china_market_margin_sh = lambda: pd.DataFrame({"date": ["2026-05-20"], "balance": [1e9]})
         ak.stock_hsgt_hist_em = lambda *a, **kw: pd.DataFrame({"date": ["2026-05-20"], "flow": [100]})
         ak.stock_us_spot_em = lambda: pd.DataFrame({"名称": ["标普500指数"], "最新价": [5000]})
@@ -216,17 +216,28 @@ class TestRunCloseModeErrors:
         """run_close_mode with empty akshare response should record degraded error."""
         import importlib
         from src import akshare_client as ak_module, ttfund_client as tt_module
+        import akshare as ak
+
+        ths_mock_df = pd.DataFrame({
+            "序号":[1],"基金代码":["510300"],"基金名称":["test"],
+            "当前-单位净值":[3.8],"当前-累计净值":[3.8],
+            "前一日-单位净值":[3.7],"前一日-累计净值":[3.7],
+            "增长值":[0.1],"增长率":[2.7],
+            "赎回状态":["开放"],"申购状态":["开放"],
+            "最新-交易日":["2026-05-20"],"最新-单位净值":[3.8],
+            "最新-累计净值":[3.8],"基金类型":["股票型"],"查询日期":["2026-05-20"],
+        })
+        # Set mocks BEFORE reload
+        ak.fund_etf_category_ths = lambda: ths_mock_df
+        ak.macro_china_market_margin_sh = lambda: pd.DataFrame()  # empty → degraded
+        ak.stock_hsgt_hist_em = lambda *a, **kw: pd.DataFrame({"date": ["2026-05-20"], "flow": [100]})
+        ak.stock_us_spot_em = lambda: pd.DataFrame({"名称": ["标普500指数"], "最新价": [5000]})
 
         importlib.reload(ak_module)
         importlib.reload(tt_module)
 
         cd = _reload(monkeypatch, tmp_path, extra_modules=[ak_module, tt_module])
         monkeypatch.setattr(cd, "today", lambda: datetime.date(2026, 5, 20))
-        import akshare as ak
-        ak.fund_etf_category_sina = lambda: pd.DataFrame({"代码": ["510300"], "最新价": [3.8], "涨跌幅": [0.5], "成交额": [1e8]})
-        ak.macro_china_market_margin_sh = lambda: pd.DataFrame()  # empty → degraded
-        ak.stock_hsgt_hist_em = lambda *a, **kw: pd.DataFrame({"date": ["2026-05-20"], "flow": [100]})
-        ak.stock_us_spot_em = lambda: pd.DataFrame({"名称": ["标普500指数"], "最新价": [5000]})
         tt_module.get_nav_history = lambda code, rng: {"data": {"nav_history": {"items": []}}}
 
         result = cd.run_close_mode()
@@ -241,7 +252,19 @@ class TestRunCloseModeErrors:
         from src import akshare_client as ak_module, ttfund_client as tt_module
         import akshare as ak
 
-        # Set mock BEFORE reloading modules so akshare_client sees it on import
+        ths_mock_df = pd.DataFrame({
+            "序号":[1],"基金代码":["510300"],"基金名称":["test"],
+            "当前-单位净值":[3.8],"当前-累计净值":[3.8],
+            "前一日-单位净值":[3.7],"前一日-累计净值":[3.7],
+            "增长值":[0.1],"增长率":[2.7],
+            "赎回状态":["开放"],"申购状态":["开放"],
+            "最新-交易日":["2026-05-20"],"最新-单位净值":[3.8],
+            "最新-累计净值":[3.8],"基金类型":["股票型"],"查询日期":["2026-05-20"],
+        })
+        # Set ALL akshare mocks BEFORE reload
+        ak.fund_etf_category_ths = lambda: ths_mock_df
+        ak.macro_china_market_margin_sh = lambda: pd.DataFrame({"date": ["2026-05-20"], "balance": [1e9]})
+        ak.stock_hsgt_hist_em = lambda *a, **kw: pd.DataFrame({"date": ["2026-05-20"], "flow": [100]})
         ak.stock_us_spot_em = lambda: (_ for _ in ()).throw(
             ConnectionError("RemoteDisconnected('Remote end closed connection')")
         )
@@ -251,9 +274,6 @@ class TestRunCloseModeErrors:
 
         cd = _reload(monkeypatch, tmp_path, extra_modules=[ak_module, tt_module])
         monkeypatch.setattr(cd, "today", lambda: datetime.date(2026, 5, 20))
-        ak.fund_etf_category_sina = lambda: pd.DataFrame({"代码": ["510300"], "最新价": [3.8], "涨跌幅": [0.5], "成交额": [1e8]})
-        ak.macro_china_market_margin_sh = lambda: pd.DataFrame({"date": ["2026-05-20"], "balance": [1e9]})
-        ak.stock_hsgt_hist_em = lambda *a, **kw: pd.DataFrame({"date": ["2026-05-20"], "flow": [100]})
         tt_module.get_nav_history = lambda code, rng: {"data": {"nav_history": {"items": []}}}
 
         result = cd.run_close_mode()
@@ -268,17 +288,19 @@ class TestRunCloseModeErrors:
         """Each error entry should follow '{task}: {detail}; suggestion: {action}' format."""
         import importlib
         from src import akshare_client as ak_module, ttfund_client as tt_module
+        import akshare as ak
+
+        # Set mocks BEFORE reload so akshare_client captures them at import time
+        ak.fund_etf_category_ths = lambda: pd.DataFrame()
+        ak.macro_china_market_margin_sh = lambda: pd.DataFrame()
+        ak.stock_hsgt_hist_em = lambda *a, **kw: pd.DataFrame()
+        ak.stock_us_spot_em = lambda: pd.DataFrame()  # empty → degraded
 
         importlib.reload(ak_module)
         importlib.reload(tt_module)
 
         cd = _reload(monkeypatch, tmp_path, extra_modules=[ak_module, tt_module])
         monkeypatch.setattr(cd, "today", lambda: datetime.date(2026, 5, 20))
-        import akshare as ak
-        ak.fund_etf_category_sina = lambda: pd.DataFrame()
-        ak.macro_china_market_margin_sh = lambda: pd.DataFrame()
-        ak.stock_hsgt_hist_em = lambda *a, **kw: pd.DataFrame()
-        ak.stock_us_spot_em = lambda: pd.DataFrame()  # empty → degraded
         tt_module.get_nav_history = lambda code, rng: {}
 
         result = cd.run_close_mode()

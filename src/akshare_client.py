@@ -4,7 +4,7 @@ Provides a single public function `get_akshare_data` and one internal
 helper `_with_cache` that wraps any fetch function with a TTL-based CSV cache.
 
 Public market data functions:
-- get_etf_snapshot()    : ETF real-time snapshot (sina, 24h TTL)
+- get_etf_snapshot()    : ETF real-time snapshot (THS, 1576 ETFs, 24h TTL)
 - get_north_flow()       : North-bound capital flow (hsgt, 168h TTL)
 - get_etf_history()      : ETF historical k-line with sina→em fallback (24h TTL)
 - get_us_stock_index()  : US major indices (Nasdaq/S&P/Dow Jones) via stock_us_spot_em (24h TTL)
@@ -134,15 +134,31 @@ def get_akshare_data(
 
 
 def get_etf_snapshot() -> pd.DataFrame:
-    """ETF real-time snapshot from Sina.
+    """ETF real-time snapshot from THS (Tonghuashun).
 
-    Wraps ``akshare.fund_etf_category_sina()``.
+    Wraps ``akshare.fund_etf_category_ths()`` which covers 1576 ETFs with
+    pure numeric codes (vs Sina's 382 with sz/sh prefixes).
+
+    Output columns are standardised to match config expectations:
+        代码 (pure numeric, e.g. "510300"), 名称, 涨跌幅, 最新价 (净值≈市价).
+
     Cache TTL: 24 hours.
-
-    Returns:
-        DataFrame with ETF listing data.
     """
-    return _with_cache("etf_snapshot", 24, lambda: (_rate_limit(), ak.fund_etf_category_sina())[-1])
+    _rename = {
+        "基金代码": "代码",
+        "基金名称": "名称",
+        "当前-单位净值": "最新价",
+        "增长率": "涨跌幅",
+        "增长值": "涨跌额",
+        "前一日-单位净值": "昨收",
+    }
+
+    def _fetch():
+        _rate_limit()
+        raw = ak.fund_etf_category_ths()
+        return raw.rename(columns=_rename)
+
+    return _with_cache("etf_snapshot_ths", 24, _fetch)
 
 
 def get_north_flow(symbol: str = "北向资金", months: int = 3) -> pd.DataFrame:
