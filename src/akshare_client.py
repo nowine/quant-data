@@ -156,9 +156,9 @@ def get_etf_snapshot() -> pd.DataFrame:
     def _fetch():
         _rate_limit()
         raw = ak.fund_etf_category_ths()
-        return raw.rename(columns=_rename)
+        return raw.rename(columns=_rename).astype({"代码": str})
 
-    return _with_cache("etf_snapshot_ths", 24, _fetch)
+    return _with_cache("etf_snapshot_ths", 24, _fetch).astype({"代码": str})
 
 
 def get_north_flow(symbol: str = "北向资金", months: int = 3) -> pd.DataFrame:
