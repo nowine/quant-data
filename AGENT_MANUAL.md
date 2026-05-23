@@ -11,10 +11,11 @@
 2. [数据文件路径速查](#2-数据文件路径速查)
 3. [各数据源详解](#3-各数据源详解)
 4. [数据格式](#4-数据格式)
-5. [缓存与重跑机制](#5-缓存与重跑机制)
-6. [如何扩展新数据源](#6-如何扩展新数据源)
-7. [常见问题](#7-常见问题)
-8. [文件清单](#8-文件清单)
+5. [错误传播机制（errors 字段）](#5-错误传播机制errors-字段)
+6. [缓存与重跑机制](#6-缓存与重跑机制)
+7. [如何扩展新数据源](#7-如何扩展新数据源)
+8. [常见问题](#8-常见问题)
+9. [文件清单](#9-文件清单)
 
 ---
 
@@ -42,6 +43,40 @@ export PYTHONPATH=.
 ```bash
 python src/collector_daily.py --mode=morning --health
 # 返回 0 表示健康
+```
+
+### 返回值结构
+
+所有 `run_*(date)` 函数返回一个 **dict**，始终包含 `errors` 字段：
+
+```python
+{
+    "data": { ... },       # 各数据采集结果（key 因 mode 而异）
+    "errors": [            # ⚠️ 重点：即使全部成功也返回 []，失败时有内容
+        "{task}: {detail}; suggestion: {fallback_action}",
+        ...
+    ]
+}
+```
+
+**errors 字段含义：**
+- `errors = []` — 所有数据源均成功，无任何错误
+- `errors = ["..."]` — 部分或全部数据源失败，但框架仍返回了退化数据（可能来自缓存或不完整采集）
+- **每个错误条目格式：** `"{task}: {exception_message}; suggestion: {LLM_fallback_action}"`
+
+**如何使用 errors 做 fallback：**
+```python
+result = run_close_mode()
+
+if result["errors"]:
+    # 有数据源失败，LLM 应考虑用其他途径补全
+    for err in result["errors"]:
+        task = err.split(": ")[0]          # e.g. "us_stock_index"
+        suggestion = err.split("suggestion: ")[1]  # LLM 可执行的 fallback 指令
+        print(f"数据源 [{task}] 失败，建议：{suggestion}")
+else:
+    # 所有数据源成功
+    pass
 ```
 
 ---
@@ -241,7 +276,142 @@ dict_resp = get_strategy("红利", "all")  # strategy_name + scope
 
 ---
 
-## 5. 缓存与重跑机制
+## 5. 错误传播机制（errors 字段）
+
+> ⚠️ **面向 LLM Agent 的核心机制** — 当部分数据源失败时，`result["errors"]` 会告知具体哪个任务失败及建议的 fallback 动作。
+> 即使存在错误，采集器仍会返回退化数据（可能来自缓存或不完整采集），Agent 不应因此放弃整个采集结果。
+
+### 5.1 错误来源分类
+
+| 场景 | `status` 值 | `result["errors"]` | 说明 |
+|------|------------|-------------------|------|
+| fetch 函数返回**空 DataFrame/dict** | `"degraded"` | ✅ 追加错误 | 数据源返回空结果，可能是非交易日或数据延迟 |
+| fetch 函数**抛出异常** | `"error"` | ✅ 追加错误 | 网络超时（30s）、连接断开、API 限流等 |
+| **缓存命中** | `"cache_hit"` | ❌ 不修改 | 数据来自磁盘缓存，无错误 |
+| **采集跳过**（文件已存在） | `"skipped"` | ❌ 不修改 | 使用已有文件，无错误 |
+| **成功写入** | `"success"` | ❌ 不修改 | 正常采集，无错误 |
+
+### 5.2 错误消息格式
+
+```
+{task_name}: {exception_or_error_detail}; suggestion: {LLM_fallback_action}
+```
+
+**示例：**
+```
+us_stock_index: RemoteDisconnected('Remote end closed connection without response'); suggestion: use LLM to search current US stock index data (Nasdaq/S&P/Dow)
+
+nav_510300: TTFUND API rate limit exceeded; suggestion: check ttfund NAV interface or use LLM
+
+margin_sh: eastmoney API unreachable (Connection aborted.); suggestion: check margin data source or skip
+```
+
+### 5.3 各采集模式的 errors 行为
+
+#### `run_close_mode()` — 收盘采集
+```python
+result = run_close_mode(date)
+# result["errors"] 示例：
+[
+    "us_stock_index: RemoteDisconnected('Remote end closed connection'); suggestion: use LLM to search current US stock index data (Nasdaq/S&P/Dow)",
+    "nav_510300: TTFUND API timeout after 30s; suggestion: check ttfund NAV interface or use LLM"
+]
+```
+
+| 任务名 | 失败原因 | suggestion 内容 |
+|--------|---------|----------------|
+| `etf_snapshot` | 空DataFrame / 异常 | use LLM to search current ETF snapshot data |
+| `margin_sh` | 空DataFrame / 异常 | check margin data source or skip |
+| `north_flow` | 空DataFrame / 异常 | check north flow data source or skip |
+| `us_stock_index` | 异常 | use LLM to search current US stock index data (Nasdaq/S&P/Dow) |
+| `nav_{code}` | 异常 | check ttfund NAV interface or use LLM |
+| `index_valuation` | 空数据 / 异常 | check ttfund index valuation or use LLM |
+
+#### `run_morning_mode()` — 盘前采集
+```python
+result = run_morning_mode(date)
+# result["errors"] 示例：
+[
+    "gold_macro: TTFUND API returned empty data; suggestion: check ttfund gold/macro interface or use LLM",
+    "index_valuation: empty index valuation data; suggestion: check ttfund index valuation or use LLM"
+]
+```
+
+#### `run_weekly()` — 周度采集
+```python
+result = run_weekly(date)
+# result["errors"] 示例：
+[
+    "etf_scale: empty ETF scale data; suggestion: check SSE ETF scale data source or skip",
+    "industry_alloc: Connection reset by peer; suggestion: use LLM to search ETF industry allocation data"
+]
+```
+
+#### `run_monthly()` — 月度采集
+```python
+result = run_monthly(date)
+# result["errors"] 示例：
+[
+    "cpi: empty CPI data (data source not yet updated); suggestion: check macro data source or use LLM to search China CPI data",
+    "gdp: Connection timeout after 30s; suggestion: check national statistics interface or skip"
+]
+```
+
+### 5.4 Agent 正确处理 errors 的方式
+
+**✅ 正确做法：**
+```python
+result = run_close_mode()
+if result["errors"]:
+    # 仍然可以使用 result["data"] 中的有效数据
+    usable_data = result["data"]
+    failed_sources = [e.split(": ")[0] for e in result["errors"]]
+    # 根据 suggestion 决定是否用 LLM 补全
+    for err in result["errors"]:
+        task = err.split(": ")[0]
+        action = err.split("suggestion: ")[1]
+        print(f"[{task}] 失败 → {action}")
+else:
+    # 全部成功
+    usable_data = result["data"]
+```
+
+**❌ 错误做法：**
+```python
+result = run_close_mode()
+if result["errors"]:
+    raise Exception("采集失败")  # 不要因为部分失败放弃整个结果
+# 或者
+if not result["data"]["etf_snapshot"]["success"]:  # 不要逐个检查，应该用 errors
+    ...
+```
+
+### 5.5 超时行为
+
+| 数据源 | 默认超时 |
+|--------|---------|
+| AkShare APIs（akshare_client） | **30 秒**（socket level） |
+| 天天基金 API（ttfund_client） | 通过 `requests` 的 timeout 参数控制 |
+
+超时后抛出 `socket.timeout` → 被捕获 → `_record_error` → `result["errors"]`。
+
+### 5.6 验证 errors 是否正确记录
+
+```bash
+# 查看 CLI 输出中的 [ERRORS] 块
+python src/collector_daily.py --mode=close
+# 输出：
+# [ERRORS] 2 issue(s) detected:
+#   - us_stock_index: RemoteDisconnected('...'); suggestion: use LLM...
+#   - nav_510300: timeout after 30s; suggestion: check ttfund...
+
+# 查看日志
+cat data/logs/collect_20260520.csv | grep error
+```
+
+---
+
+## 6. 缓存与重跑机制
 
 ### 核心逻辑：`collect_if_missing()`
 
@@ -290,7 +460,7 @@ python src/collector_daily.py --mode=close
 
 ---
 
-## 6. 如何扩展新数据源
+## 7. 如何扩展新数据源
 
 ### 6.1 添加 AkShare 数据源
 
@@ -372,7 +542,7 @@ if __name__ == "__main__":
 
 ---
 
-## 7. 常见问题
+## 8. 常见问题
 
 ### Q: API 调用报 `400 Bad Request`
 
@@ -409,7 +579,7 @@ cat /root/secureshare/files/ETF轮动分析框架/data/logs/collect_20260521.csv
 
 ---
 
-## 8. 文件清单
+## 9. 文件清单
 
 ### 源代码（`src/`）
 
@@ -443,7 +613,8 @@ cat /root/secureshare/files/ETF轮动分析框架/data/logs/collect_20260521.csv
 | `test_collector_weekly.py` | 周度采集测试 |
 | `test_collector_monthly.py` | 月度采集测试 |
 | `test_collector_quarterly.py` | 季度采集测试 |
+| `test_collector_errors.py` | 错误传播机制测试（22个用例） |
 
 ---
 
-_手册版本：1.0 | 更新日期：2026-05-21_
+_手册版本：1.1 | 更新日期：2026-05-23_
