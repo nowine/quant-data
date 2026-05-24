@@ -38,6 +38,10 @@ def aggregate_by_sector(
             - rise_ratio: rise_count / total_count
     """
     rows = []
+    # Pre-cast all snapshot codes to str so CSV round-trip (int → str) doesn't break matching
+    snapshot_df = snapshot_df.copy()
+    snapshot_df[code_col] = snapshot_df[code_col].astype(str)
+
     for sector, codes in sector_mapping.items():
         subset = snapshot_df[snapshot_df[code_col].isin(codes)]
         if subset.empty:
@@ -69,7 +73,10 @@ def rank_sectors(sector_df: pd.DataFrame) -> pd.DataFrame:
 
     Returns:
         DataFrame sorted by avg_change_pct desc, with added rank column (1=best)
+        If sector_df is empty, returns an empty DataFrame with expected columns.
     """
+    if sector_df.empty:
+        return sector_df
     df = sector_df.sort_values("avg_change_pct", ascending=False).reset_index(drop=True)
     df.insert(0, "rank", range(1, len(df) + 1))
     return df

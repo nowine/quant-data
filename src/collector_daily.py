@@ -17,6 +17,7 @@ import pandas as pd
 from src import config, logger as logger_module
 from src.akshare_client import (
     get_etf_snapshot,
+    get_etf_history,
     get_margin_sh,
     get_north_flow,
     get_us_stock_index,
@@ -238,9 +239,11 @@ def _run_sector_aggregation() -> pd.DataFrame:
     This is called after etf_snapshot has been collected (cache confirmed hit).
     Returns a DataFrame with sector-level aggregated statistics.
     """
+    from src.sector_aggregator import aggregate_by_sector, rank_sectors
+
     snapshot_path = str(_etf_snapshot_path())
     snapshot = load_csv(snapshot_path)
-    agg = aggregate_by_sector(snapshot, config.SECTOR_MAPPING, code_col="代码", change_col="涨跌幅", volume_col="成交额")
+    agg = aggregate_by_sector(snapshot, config.SECTOR_MAPPING, code_col="代码", change_col="涨跌幅")
     return rank_sectors(agg)
 
 
@@ -381,7 +384,7 @@ def run_close_mode() -> dict[str, dict]:
             fetch_nav,
             path,
             errors,
-            suggestion="check ttfund NAV interface or use LLM",
+            suggestion="check akshare etf_history interface or use LLM",
         )
 
     results["nav"] = nav_results
@@ -412,7 +415,8 @@ def run_close_mode() -> dict[str, dict]:
 def _run_tech_indicators_for_user_holdings() -> pd.DataFrame:
     """Compute technical indicators for each user holding.
 
-    Fetches NAV history from ttfund, computes MA20/60, RSI, ATR, Bollinger, MACD.
+    Fetches OHLCV history from akshare get_etf_history, computes MA20/60,
+    RSI, ATR, Bollinger, MACD, volume_ratio.
     Returns empty DataFrame if no data available.
     """
     rows = []
@@ -421,56 +425,53 @@ def _run_tech_indicators_for_user_holdings() -> pd.DataFrame:
         name = holding["name"]
         sector = holding["sector"]
 
-        # Get NAV history (annual) for OHLCV approximation
+        # Get OHLCV history from akshare (open/high/low/close/volume)
         try:
-            raw = get_nav_history(code, "y")
-            items = raw.get("data", {}).get("nav_history", {}).get("items", [])
-            if not items:
+            ohlcv_df = get_etf_history(code)
+            if ohlcv_df.empty:
                 continue
-            nav_df = pd.DataFrame(items)
-            # ttfund nav columns: DWJZ (current nav), DWJZ_ZD (daily change), JZZM (NAV multiplier)
-            # We use DWJZ as price-like series for technical indicators
-            if "DWJZ" not in nav_df.columns:
+            required_cols = {"close", "volume"}
+            if not required_cols.issubset(set(ohlcv_df.columns)):
                 continue
 
             # Sort by date ascending for indicator calculation
-            nav_df["_dt"] = pd.to_datetime(nav_df.get("JZRQ", nav_df.index), errors="coerce")
-            nav_df = nav_df.dropna(subset=["_dt"]).sort_values("_dt")
-            price_series = nav_df["DWJZ"].astype(float)
+            ohlcv_df = ohlcv_df.sort_values("date")
 
+            # Calculate indicators using OHLCV data
+            ma_result = calc_ma(ohlcv_df, (20, 60))
             indicators = {
-                "ma20": calc_ma(price_series, 20),
-                "ma60": calc_ma(price_series, 60),
-                "rsi14": calc_rsi(price_series, 14),
-                "atr14": calc_atr(price_series, 14),
+                "ma20": ma_result["MA20"],
+                "ma60": ma_result["MA60"],
+                "rsi14": calc_rsi(ohlcv_df, 14),
+                "atr14": calc_atr(ohlcv_df, 14),
             }
-            boll = calc_bollinger(price_series, 20)
-            macd_val = calc_macd(price_series)
-            vol_ratio = calc_volume_ratio(price_series, 20)
+            boll = calc_bollinger(ohlcv_df, 20)
+            macd_val = calc_macd(ohlcv_df)
+            vol_ratio = calc_volume_ratio(ohlcv_df, 20)
 
             # Use latest values
-            latest_price = float(price_series.iloc[-1])
+            latest_price = float(ohlcv_df["close"].iloc[-1])
             rows.append({
                 "code": code,
                 "name": name,
                 "sector": sector,
                 "price": latest_price,
-                "ma20": round(indicators["ma20"][-1] if len(indicators["ma20"]) else float("nan"), 4),
-                "ma60": round(indicators["ma60"][-1] if len(indicators["ma60"]) else float("nan"), 4),
-                "rsi14": round(indicators["rsi14"][-1] if len(indicators["rsi14"]) else float("nan"), 4),
-                "atr14": round(indicators["atr14"][-1] if len(indicators["atr14"]) else float("nan"), 4),
-                "boll_upper": round(boll["upper"][-1] if len(boll["upper"]) else float("nan"), 4),
-                "boll_mid": round(boll["mid"][-1] if len(boll["mid"]) else float("nan"), 4),
-                "boll_lower": round(boll["lower"][-1] if len(boll["lower"]) else float("nan"), 4),
-                "macd_dif": round(macd_val["dif"][-1] if len(macd_val["dif"]) else float("nan"), 4),
-                "macd_dea": round(macd_val["dea"][-1] if len(macd_val["dea"]) else float("nan"), 4),
-                "macd_hist": round(macd_val["hist"][-1] if len(macd_val["hist"]) else float("nan"), 4),
-                "volume_ratio": round(vol_ratio[-1] if len(vol_ratio) else float("nan"), 4),
+                "ma20": round(float(indicators["ma20"].iloc[-1]) if len(indicators["ma20"]) else float("nan"), 4),
+                "ma60": round(float(indicators["ma60"].iloc[-1]) if len(indicators["ma60"]) else float("nan"), 4),
+                "rsi14": round(float(indicators["rsi14"].iloc[-1]) if len(indicators["rsi14"]) else float("nan"), 4),
+                "atr14": round(float(indicators["atr14"].iloc[-1]) if len(indicators["atr14"]) else float("nan"), 4),
+                "boll_upper": round(float(boll["BB_UPPER"].iloc[-1]) if len(boll["BB_UPPER"]) else float("nan"), 4),
+                "boll_mid": round(float(boll["BB_MIDDLE"].iloc[-1]) if len(boll["BB_MIDDLE"]) else float("nan"), 4),
+                "boll_lower": round(float(boll["BB_LOWER"].iloc[-1]) if len(boll["BB_LOWER"]) else float("nan"), 4),
+                "macd_dif": round(float(macd_val["DIF"].iloc[-1]) if len(macd_val["DIF"]) else float("nan"), 4),
+                "macd_dea": round(float(macd_val["DEA"].iloc[-1]) if len(macd_val["DEA"]) else float("nan"), 4),
+                "macd_hist": round(float(macd_val["MACD"].iloc[-1]) if len(macd_val["MACD"]) else float("nan"), 4),
+                "volume_ratio": round(float(vol_ratio.iloc[-1]) if len(vol_ratio) else float("nan"), 4),
             })
         except Exception as e:
             logger_module.log_collect(
                 task=f"tech_indicator_{code}",
-                source="nav_history",
+                source="etf_history",
                 status="error",
                 rows=0,
                 elapsed_sec=0,
@@ -541,7 +542,7 @@ def run_morning_mode() -> dict[str, dict]:
             suggestion=f"premium for {code} requires yesterday's snapshot; run close mode first",
         )
 
-    # 4. 技术指标 — 基于 NAV 历史计算 MA/RSI/ATR/Bollinger/MACD
+    # 4. 技术指标 — 基于 akshare get_etf_history OHLCV 计算 MA/RSI/ATR/Bollinger/MACD/量比
     for holding in config.USER_HOLDINGS:
         code = holding["code"]
         path = _tech_indicator_path(code)
@@ -554,7 +555,7 @@ def run_morning_mode() -> dict[str, dict]:
             fetch_tech,
             path,
             errors,
-            suggestion=f"check ttfund NAV history for {code} or use LLM",
+            suggestion=f"check akshare etf_history for {code} or use LLM",
         )
 
     results["errors"] = errors
