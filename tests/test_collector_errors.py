@@ -98,7 +98,7 @@ class TestCollectCsvErrorPropagation:
             fetch_fn=failing_fetch,
             filepath=filepath,
             errors=errors,
-            suggestion="check ttfund NAV interface or use LLM",
+            suggestion="check akshare NAV interface or use LLM",
         )
 
         assert result["status"] == "error"
@@ -106,7 +106,7 @@ class TestCollectCsvErrorPropagation:
         assert len(errors) == 1
         assert "nav_510300" in errors[0]
         assert "connection refused" in errors[0]
-        assert "suggestion: check ttfund NAV interface" in errors[0]
+        assert "suggestion: check akshare NAV interface" in errors[0]
 
     def test_collect_csv_on_success_does_not_clear_errors(self, monkeypatch, tmp_path):
         """_collect_csv with valid non-empty DataFrame should not modify the errors list."""
@@ -159,7 +159,7 @@ class TestCollectJsonErrorPropagation:
             fetch_fn=lambda: {},
             filepath=filepath,
             errors=errors,
-            suggestion="check ttfund index valuation or use LLM",
+            suggestion="check akshare index valuation (P2-3) or use LLM",
         )
 
         assert result["status"] == "degraded"
@@ -179,25 +179,25 @@ class TestCollectJsonErrorPropagation:
             fetch_fn=lambda: (_ for _ in ()).throw(ValueError("invalid response")),
             filepath=filepath,
             errors=errors,
-            suggestion="check ttfund gold/macro interface or use LLM",
+            suggestion="check akshare gold/macro interface (P2-1) or use LLM",
         )
 
         assert result["status"] == "error"
         assert len(errors) == 1
         assert "gold_macro" in errors[0]
-        assert "suggestion: check ttfund gold/macro" in errors[0]
+        assert "suggestion: check akshare gold/macro interface (P2-1)" in errors[0]
 
 
 class TestRunCloseModeErrors:
     def test_run_close_mode_always_has_errors_key(self, monkeypatch, tmp_path):
         """run_close_mode result should always contain 'errors' key, even if all succeed."""
         import importlib
-        from src import akshare_client as ak_module, ttfund_client as tt_module
+        from src import akshare_client as ak_module, akshare_fund_client as af_module
 
         importlib.reload(ak_module)
-        importlib.reload(tt_module)
+        importlib.reload(af_module)
 
-        cd = _reload(monkeypatch, tmp_path, extra_modules=[ak_module, tt_module])
+        cd = _reload(monkeypatch, tmp_path, extra_modules=[ak_module, af_module])
         monkeypatch.setattr(cd, "today", lambda: datetime.date(2026, 5, 20))
         # Mock akshare internals so no real network calls
         import akshare as ak
@@ -205,7 +205,7 @@ class TestRunCloseModeErrors:
         ak.macro_china_market_margin_sh = lambda: pd.DataFrame({"date": ["2026-05-20"], "balance": [1e9]})
         ak.stock_hsgt_hist_em = lambda *a, **kw: pd.DataFrame({"date": ["2026-05-20"], "flow": [100]})
         ak.stock_us_spot_em = lambda: pd.DataFrame({"名称": ["标普500指数"], "最新价": [5000]})
-        tt_module.get_nav_history = lambda code, rng: {"data": {"nav_history": {"items": [{"JZRQ": "2026-05-20", "DWJZ": "3.8"}]}}}
+        af_module.get_nav_history = lambda code, rng: {"data": {"nav_history": {"items": [{"JZRQ": "2026-05-20", "DWJZ": "3.8"}]}}}
 
         result = cd.run_close_mode()
 
@@ -215,7 +215,7 @@ class TestRunCloseModeErrors:
     def test_run_close_mode_empty_df_propagates_degraded_error(self, monkeypatch, tmp_path):
         """run_close_mode with empty akshare response should record degraded error."""
         import importlib
-        from src import akshare_client as ak_module, ttfund_client as tt_module
+        from src import akshare_client as ak_module, akshare_fund_client as af_module
         import akshare as ak
 
         ths_mock_df = pd.DataFrame({
@@ -234,11 +234,11 @@ class TestRunCloseModeErrors:
         ak.stock_us_spot_em = lambda: pd.DataFrame({"名称": ["标普500指数"], "最新价": [5000]})
 
         importlib.reload(ak_module)
-        importlib.reload(tt_module)
+        importlib.reload(af_module)
 
-        cd = _reload(monkeypatch, tmp_path, extra_modules=[ak_module, tt_module])
+        cd = _reload(monkeypatch, tmp_path, extra_modules=[ak_module, af_module])
         monkeypatch.setattr(cd, "today", lambda: datetime.date(2026, 5, 20))
-        tt_module.get_nav_history = lambda code, rng: {"data": {"nav_history": {"items": []}}}
+        af_module.get_nav_history = lambda code, rng: {"data": {"nav_history": {"items": []}}}
 
         result = cd.run_close_mode()
 
@@ -249,7 +249,7 @@ class TestRunCloseModeErrors:
     def test_run_close_mode_exception_propagates_to_errors(self, monkeypatch, tmp_path):
         """run_close_mode when an API raises should record error in result['errors'] with suggestion."""
         import importlib
-        from src import akshare_client as ak_module, ttfund_client as tt_module
+        from src import akshare_client as ak_module, akshare_fund_client as af_module
         import akshare as ak
 
         ths_mock_df = pd.DataFrame({
@@ -270,11 +270,11 @@ class TestRunCloseModeErrors:
         )
 
         importlib.reload(ak_module)
-        importlib.reload(tt_module)
+        importlib.reload(af_module)
 
-        cd = _reload(monkeypatch, tmp_path, extra_modules=[ak_module, tt_module])
+        cd = _reload(monkeypatch, tmp_path, extra_modules=[ak_module, af_module])
         monkeypatch.setattr(cd, "today", lambda: datetime.date(2026, 5, 20))
-        tt_module.get_nav_history = lambda code, rng: {"data": {"nav_history": {"items": []}}}
+        af_module.get_nav_history = lambda code, rng: {"data": {"nav_history": {"items": []}}}
 
         result = cd.run_close_mode()
 
@@ -287,7 +287,7 @@ class TestRunCloseModeErrors:
     def test_run_close_mode_error_format_is_structured(self, monkeypatch, tmp_path):
         """Each error entry should follow '{task}: {detail}; suggestion: {action}' format."""
         import importlib
-        from src import akshare_client as ak_module, ttfund_client as tt_module
+        from src import akshare_client as ak_module, akshare_fund_client as af_module
         import akshare as ak
 
         # Set mocks BEFORE reload so akshare_client captures them at import time
@@ -297,11 +297,11 @@ class TestRunCloseModeErrors:
         ak.stock_us_spot_em = lambda: pd.DataFrame()  # empty → degraded
 
         importlib.reload(ak_module)
-        importlib.reload(tt_module)
+        importlib.reload(af_module)
 
-        cd = _reload(monkeypatch, tmp_path, extra_modules=[ak_module, tt_module])
+        cd = _reload(monkeypatch, tmp_path, extra_modules=[ak_module, af_module])
         monkeypatch.setattr(cd, "today", lambda: datetime.date(2026, 5, 20))
-        tt_module.get_nav_history = lambda code, rng: {}
+        af_module.get_nav_history = lambda code, rng: {}
 
         result = cd.run_close_mode()
 
@@ -313,15 +313,15 @@ class TestRunCloseModeErrors:
 class TestRunMorningModeErrors:
     def test_run_morning_mode_always_has_errors_key(self, monkeypatch, tmp_path):
         """run_morning_mode result should always contain 'errors' key, even if empty."""
-        from src import ttfund_client as tt_module
+        from src import akshare_fund_client as af_module
 
         import importlib
-        importlib.reload(tt_module)
+        importlib.reload(af_module)
 
-        cd = _reload(monkeypatch, tmp_path, extra_modules=[tt_module])
+        cd = _reload(monkeypatch, tmp_path, extra_modules=[af_module])
         monkeypatch.setattr(cd, "today", lambda: datetime.date(2026, 5, 20))
-        tt_module.get_gold_info = lambda scope: {"data": {}}
-        tt_module.get_index_info = lambda idx, scope: {"data": {}}
+        af_module.get_gold_info = lambda scope: {"data": {}}
+        af_module.get_index_info = lambda idx, scope: {"data": {}}
 
         result = cd.run_morning_mode()
 
@@ -330,16 +330,16 @@ class TestRunMorningModeErrors:
 
     def test_run_morning_mode_error_format_is_structured(self, monkeypatch, tmp_path):
         """Each morning-mode error entry should follow '{task}: {detail}; suggestion: {action}'."""
-        from src import ttfund_client as tt_module
+        from src import akshare_fund_client as af_module
 
         import importlib
-        importlib.reload(tt_module)
+        importlib.reload(af_module)
 
-        cd = _reload(monkeypatch, tmp_path, extra_modules=[tt_module])
+        cd = _reload(monkeypatch, tmp_path, extra_modules=[af_module])
         monkeypatch.setattr(cd, "today", lambda: datetime.date(2026, 5, 20))
         # Empty data → degraded
-        tt_module.get_gold_info = lambda scope: None
-        tt_module.get_index_info = lambda idx, scope: None
+        af_module.get_gold_info = lambda scope: None
+        af_module.get_index_info = lambda idx, scope: None
 
         result = cd.run_morning_mode()
 

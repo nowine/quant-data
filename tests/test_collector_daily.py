@@ -54,9 +54,9 @@ def test_close_mode_calls_etf_snapshot(monkeypatch, tmp_path):
     monkeypatch.setattr(ak_module, "get_margin_sh", lambda: pd.DataFrame())
     monkeypatch.setattr(ak_module, "get_north_flow", lambda sym, months: pd.DataFrame())
 
-    from src import ttfund_client as tt_module
-    importlib.reload(tt_module)
-    monkeypatch.setattr(tt_module, "get_nav_history", lambda code, rng: {})
+    from src import akshare_fund_client as af_module
+    importlib.reload(af_module)
+    monkeypatch.setattr(af_module, "get_nav_history", lambda code, rng: {})
 
     from src import collector_daily
     importlib.reload(collector_daily)
@@ -82,9 +82,9 @@ def test_close_mode_calls_margin_sh(monkeypatch, tmp_path):
     monkeypatch.setattr(ak_module, "get_margin_sh", lambda: mock_margin_df)
     monkeypatch.setattr(ak_module, "get_north_flow", lambda sym, months: pd.DataFrame())
 
-    from src import ttfund_client as tt_module
-    importlib.reload(tt_module)
-    monkeypatch.setattr(tt_module, "get_nav_history", lambda code, rng: {})
+    from src import akshare_fund_client as af_module
+    importlib.reload(af_module)
+    monkeypatch.setattr(af_module, "get_nav_history", lambda code, rng: {})
 
     from src import collector_daily
     importlib.reload(collector_daily)
@@ -114,9 +114,9 @@ def test_close_mode_calls_get_north_flow_with_correct_args(monkeypatch, tmp_path
         return mock_north_df
     monkeypatch.setattr(ak_module, "get_north_flow", track_north)
 
-    from src import ttfund_client as tt_module
-    importlib.reload(tt_module)
-    monkeypatch.setattr(tt_module, "get_nav_history", lambda code, rng: {})
+    from src import akshare_fund_client as af_module
+    importlib.reload(af_module)
+    monkeypatch.setattr(af_module, "get_nav_history", lambda code, rng: {})
 
     from src import collector_daily
     importlib.reload(collector_daily)
@@ -143,13 +143,13 @@ def test_close_mode_iterates_nav_for_all_etfs(monkeypatch, tmp_path):
     monkeypatch.setattr(ak_module, "get_margin_sh", lambda: pd.DataFrame())
     monkeypatch.setattr(ak_module, "get_north_flow", lambda sym, months: pd.DataFrame())
 
-    from src import ttfund_client as tt_module
-    importlib.reload(tt_module)
+    from src import akshare_fund_client as af_module
+    importlib.reload(af_module)
     nav_calls = []
     def track_nav(code, rng):
         nav_calls.append(code)
         return {}
-    monkeypatch.setattr(tt_module, "get_nav_history", track_nav)
+    monkeypatch.setattr(af_module, "get_nav_history", track_nav)
 
     from src import collector_daily
     importlib.reload(collector_daily)
@@ -171,17 +171,20 @@ def test_morning_mode_calls_get_gold_info(monkeypatch, tmp_path):
     monkeypatch.setattr(config, "DATA_DIR", str(tmp_path))
     importlib.reload(logger_module)
 
-    from src import akshare_client as ak_module
+    import src.akshare_client as ak_module
     importlib.reload(ak_module)
+    # Mock ALL akshare_client calls touched by morning_mode (etf_snapshot + 22×etf_history).
+    monkeypatch.setattr(ak_module, "get_etf_snapshot", lambda: pd.DataFrame())
+    monkeypatch.setattr(ak_module, "get_etf_history", lambda code: pd.DataFrame())
 
-    from src import ttfund_client as tt_module
-    importlib.reload(tt_module)
+    from src import akshare_fund_client as af_module
+    importlib.reload(af_module)
     gold_calls = []
     def track_gold(scope):
         gold_calls.append(scope)
         return {}
-    monkeypatch.setattr(tt_module, "get_gold_info", track_gold)
-    monkeypatch.setattr(tt_module, "get_index_info", lambda idx, scope: {})
+    monkeypatch.setattr(af_module, "get_gold_info", track_gold)
+    monkeypatch.setattr(af_module, "get_index_info", lambda idx, scope: {})
 
     from src import collector_daily
     importlib.reload(collector_daily)
@@ -200,17 +203,20 @@ def test_morning_mode_calls_get_index_info_for_all_indices(monkeypatch, tmp_path
     monkeypatch.setattr(config, "DATA_DIR", str(tmp_path))
     importlib.reload(logger_module)
 
-    from src import akshare_client as ak_module
+    import src.akshare_client as ak_module
     importlib.reload(ak_module)
+    # Mock ALL akshare_client calls touched by morning_mode (etf_snapshot + 22×etf_history).
+    monkeypatch.setattr(ak_module, "get_etf_snapshot", lambda: pd.DataFrame())
+    monkeypatch.setattr(ak_module, "get_etf_history", lambda code: pd.DataFrame())
 
-    from src import ttfund_client as tt_module
-    importlib.reload(tt_module)
+    from src import akshare_fund_client as af_module
+    importlib.reload(af_module)
     index_calls = []
     def track_index(idx, scope):
         index_calls.append(idx)
         return {}
-    monkeypatch.setattr(tt_module, "get_index_info", track_index)
-    monkeypatch.setattr(tt_module, "get_gold_info", lambda scope: {})
+    monkeypatch.setattr(af_module, "get_index_info", track_index)
+    monkeypatch.setattr(af_module, "get_gold_info", lambda scope: {})
 
     from src import collector_daily
     importlib.reload(collector_daily)
@@ -237,9 +243,9 @@ def test_close_mode_output_structure(monkeypatch, tmp_path):
     monkeypatch.setattr(ak_module, "get_margin_sh", lambda: pd.DataFrame({"date": ["2026-05-20"]}))
     monkeypatch.setattr(ak_module, "get_north_flow", lambda sym, months: pd.DataFrame())
 
-    from src import ttfund_client as tt_module
-    importlib.reload(tt_module)
-    monkeypatch.setattr(tt_module, "get_nav_history", lambda code, rng: {})
+    from src import akshare_fund_client as af_module
+    importlib.reload(af_module)
+    monkeypatch.setattr(af_module, "get_nav_history", lambda code, rng: {})
 
     from src import collector_daily
     importlib.reload(collector_daily)
@@ -264,10 +270,10 @@ def test_morning_mode_output_structure(monkeypatch, tmp_path):
     from src import akshare_client as ak_module
     importlib.reload(ak_module)
 
-    from src import ttfund_client as tt_module
-    importlib.reload(tt_module)
-    monkeypatch.setattr(tt_module, "get_gold_info", lambda scope: {})
-    monkeypatch.setattr(tt_module, "get_index_info", lambda idx, scope: {})
+    from src import akshare_fund_client as af_module
+    importlib.reload(af_module)
+    monkeypatch.setattr(af_module, "get_gold_info", lambda scope: {})
+    monkeypatch.setattr(af_module, "get_index_info", lambda idx, scope: {})
 
     from src import collector_daily
     importlib.reload(collector_daily)
@@ -300,9 +306,9 @@ def test_cli_close_mode(monkeypatch, tmp_path):
     monkeypatch.setattr(ak_module, "get_margin_sh", lambda: pd.DataFrame())
     monkeypatch.setattr(ak_module, "get_north_flow", lambda sym, months: pd.DataFrame())
 
-    from src import ttfund_client as tt_module
-    importlib.reload(tt_module)
-    monkeypatch.setattr(tt_module, "get_nav_history", lambda code, rng: {})
+    from src import akshare_fund_client as af_module
+    importlib.reload(af_module)
+    monkeypatch.setattr(af_module, "get_nav_history", lambda code, rng: {})
 
     from src import collector_daily
     importlib.reload(collector_daily)
@@ -333,10 +339,10 @@ def test_cli_morning_mode(monkeypatch, tmp_path):
     from src import akshare_client as ak_module
     importlib.reload(ak_module)
 
-    from src import ttfund_client as tt_module
-    importlib.reload(tt_module)
-    monkeypatch.setattr(tt_module, "get_gold_info", lambda scope: {})
-    monkeypatch.setattr(tt_module, "get_index_info", lambda idx, scope: {})
+    from src import akshare_fund_client as af_module
+    importlib.reload(af_module)
+    monkeypatch.setattr(af_module, "get_gold_info", lambda scope: {})
+    monkeypatch.setattr(af_module, "get_index_info", lambda idx, scope: {})
 
     from src import collector_daily
     importlib.reload(collector_daily)
@@ -370,9 +376,9 @@ def test_cli_defaults_to_close(monkeypatch, tmp_path):
     monkeypatch.setattr(ak_module, "get_margin_sh", lambda: pd.DataFrame())
     monkeypatch.setattr(ak_module, "get_north_flow", lambda sym, months: pd.DataFrame())
 
-    from src import ttfund_client as tt_module
-    importlib.reload(tt_module)
-    monkeypatch.setattr(tt_module, "get_nav_history", lambda code, rng: {})
+    from src import akshare_fund_client as af_module
+    importlib.reload(af_module)
+    monkeypatch.setattr(af_module, "get_nav_history", lambda code, rng: {})
 
     from src import collector_daily
     importlib.reload(collector_daily)
@@ -406,9 +412,9 @@ def test_close_mode_saves_daily_files(monkeypatch, tmp_path):
     monkeypatch.setattr(ak_module, "get_margin_sh", lambda: pd.DataFrame({"date": ["2026-05-20"], "balance": [1e9]}))
     monkeypatch.setattr(ak_module, "get_north_flow", lambda sym, months: pd.DataFrame({"date": ["2026-05-20"], "flow": [100]}))
 
-    from src import ttfund_client as tt_module
-    importlib.reload(tt_module)
-    monkeypatch.setattr(tt_module, "get_nav_history", lambda code, rng: {})
+    from src import akshare_fund_client as af_module
+    importlib.reload(af_module)
+    monkeypatch.setattr(af_module, "get_nav_history", lambda code, rng: {})
 
     from src import collector_daily
     importlib.reload(collector_daily)
@@ -437,9 +443,9 @@ def test_north_flow_saved_to_correct_path(monkeypatch, tmp_path):
     monkeypatch.setattr(ak_module, "get_margin_sh", lambda: pd.DataFrame())
     monkeypatch.setattr(ak_module, "get_north_flow", lambda sym, months: pd.DataFrame({"date": ["2026-05-20"], "flow": [100]}))
 
-    from src import ttfund_client as tt_module
-    importlib.reload(tt_module)
-    monkeypatch.setattr(tt_module, "get_nav_history", lambda code, rng: {})
+    from src import akshare_fund_client as af_module
+    importlib.reload(af_module)
+    monkeypatch.setattr(af_module, "get_nav_history", lambda code, rng: {})
 
     from src import collector_daily
     importlib.reload(collector_daily)

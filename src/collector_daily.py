@@ -22,7 +22,7 @@ from src.akshare_client import (
     get_north_flow,
     get_us_stock_index,
 )
-from src.ttfund_client import get_nav_history, get_gold_info, get_index_info
+from src.akshare_fund_client import get_nav_history, get_gold_info, get_index_info
 from src.storage import save_csv, save_json, exists_today, load_csv
 from src.tech_indicator import (
     calc_ma,
@@ -252,7 +252,7 @@ def _run_premium_rate_for_user_holdings() -> pd.DataFrame:
 
     Requires:
     - Yesterday's close-mode etf_snapshot (for snapshot price)
-    - Today's NAV from ttfund get_nav_history
+    - Today's NAV from akshare_fund_client get_nav_history
 
     If yesterday's snapshot is missing (e.g. morning mode run without prior close),
     logs a warning and returns an empty DataFrame.
@@ -288,7 +288,7 @@ def _run_premium_rate_for_user_holdings() -> pd.DataFrame:
             continue
         snapshot_price = float(snapshot_row.iloc[0]["最新价"])
 
-        # nav: get from ttfund
+        # nav: get from akshare_fund_client
         try:
             raw = get_nav_history(code, "y")
             items = raw.get("data", {}).get("nav_history", {}).get("items", [])
@@ -503,7 +503,7 @@ def run_morning_mode() -> dict[str, dict]:
         lambda: get_gold_info("all"),
         _gold_macro_path(),
         errors,
-        suggestion="check ttfund gold/macro interface or use LLM",
+        suggestion="check akshare gold/macro interface or use LLM (Phase 2 P2-1)",
     )
 
     # 2. 核心指数估值分位 — 遍历 INDEX_WATCH_LIST
@@ -519,7 +519,7 @@ def run_morning_mode() -> dict[str, dict]:
             fetch_val,
             path,
             errors,
-            suggestion=f"check ttfund index valuation for {idx} or use LLM",
+            suggestion=f"check akshare index valuation for {idx} or use LLM (Phase 2 P2-3)",
         )
 
     results["index_valuation"] = val_results

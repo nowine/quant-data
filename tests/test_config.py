@@ -25,19 +25,15 @@ class TestConfigBasics:
         from src.config import INDEX_WATCH_LIST
         assert len(INDEX_WATCH_LIST) >= 16
 
-    def test_ttfund_api_url_https(self):
-        """TTFUND_API_URL must start with https://"""
-        from src.config import TTFUND_API_URL
-        assert TTFUND_API_URL.startswith("https://")
-
-    def test_ttfund_api_key_from_env(self, monkeypatch):
-        """TTFUND_APIKEY must be read from environment variable"""
-        monkeypatch.setenv("TTFUND_APIKEY", "test-key-12345")
-        import importlib
-        import src.config
-        importlib.reload(src.config)
-        from src.config import TTFUND_APIKEY
-        assert TTFUND_APIKEY == "test-key-12345"
+    def test_no_ttfund_config_remaining(self):
+        """TTFUND_API_URL / TTFUND_APIKEY must be removed after Phase 1 migration."""
+        from src import config
+        assert not hasattr(config, "TTFUND_API_URL"), (
+            "TTFUND_API_URL should be removed — ttfund_client is gone"
+        )
+        assert not hasattr(config, "TTFUND_APIKEY"), (
+            "TTFUND_APIKEY should be removed — ttfund_client is gone"
+        )
 
     def test_data_dir_contains_project_name(self):
         """DATA_DIR must contain 'ETF轮动分析框架'"""

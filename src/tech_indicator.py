@@ -191,7 +191,7 @@ def calc_premium_rate(snapshot_price: float | pd.Series, nav: float | pd.Series)
 
     Args:
         snapshot_price: real-time market price (from snapshot).
-        nav: net asset value (from ttfund nav_history).
+        nav: net asset value (from akshare_fund_client nav_history).
 
     Returns:
         premium rate = snapshot_price / nav - 1 (as decimal, e.g. 0.012 = 1.2%).

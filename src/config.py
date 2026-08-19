@@ -6,6 +6,16 @@ It has no business logic, does not read/write files, and does not call any APIs.
 
 import os
 
+# Load .env for cron/isolated environments where system env vars may be absent
+try:
+    from dotenv import load_dotenv
+    from pathlib import Path as _Path
+    _env_file = _Path(__file__).resolve().parent.parent / ".env"
+    if _env_file.exists():
+        load_dotenv(_env_file, override=True)
+except ImportError:
+    pass
+
 # =============================================================================
 # ETF Watch List — 22 core ETFs for rotation analysis
 # =============================================================================
@@ -103,8 +113,8 @@ SECTOR_MAPPING = {
 # =============================================================================
 # API Configuration
 # =============================================================================
-TTFUND_API_URL = "https://skills.tiantianfunds.com/ai-smart-skill-service/openapi/skill/invoke"
-TTFUND_APIKEY = os.environ.get("TTFUND_APIKEY", "")
+# (TTFUND_API_URL / TTFUND_APIKEY removed 2026-08-20: ttfund_client replaced by
+#  akshare_fund_client. See docs/phase-2-followup.md for remaining data gaps.)
 
 # =============================================================================
 # Data Storage

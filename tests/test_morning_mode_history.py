@@ -57,9 +57,9 @@ class TestMorningModeUsesEtfHistory:
         monkeypatch.setattr(config, "DATA_DIR", str(tmp_path))
         importlib.reload(logger_module)
 
-        from src import akshare_client as ak_module, ttfund_client as tt_module
+        from src import akshare_client as ak_module, akshare_fund_client as af_module
         importlib.reload(ak_module)
-        importlib.reload(tt_module)
+        importlib.reload(af_module)
 
         from src import collector_daily as cd_module
         # CRITICAL: get_etf_history is imported into collector_daily at import time.
@@ -77,13 +77,13 @@ class TestMorningModeUsesEtfHistory:
                 "amount": [3.8e6] * 60,
             })
         cd_module.get_etf_history = tracking_get_etf_history
-        cd = _reload(monkeypatch, tmp_path, extra_modules=[ak_module, tt_module])
+        cd = _reload(monkeypatch, tmp_path, extra_modules=[ak_module, af_module])
         # Re-patch after reload since reload replaces the module object
         cd.get_etf_history = tracking_get_etf_history
         monkeypatch.setattr(cd, "today", lambda: datetime.date(2026, 5, 20))
 
-        tt_module.get_gold_info = lambda scope: {"data": {}}
-        tt_module.get_index_info = lambda idx, scope: {"data": {}}
+        af_module.get_gold_info = lambda scope: {"data": {}}
+        af_module.get_index_info = lambda idx, scope: {"data": {}}
 
         result = cd.run_morning_mode()
 
@@ -136,13 +136,13 @@ class TestMorningModeUsesEtfHistory:
         monkeypatch.setattr(config, "DATA_DIR", str(tmp_path))
         importlib.reload(logger_module)
 
-        from src import akshare_client as ak_module, ttfund_client as tt_module
+        from src import akshare_client as ak_module, akshare_fund_client as af_module
         importlib.reload(ak_module)
-        importlib.reload(tt_module)
+        importlib.reload(af_module)
 
         from src import collector_daily as cd_module
         cd_module.get_etf_history = lambda code: pd.DataFrame(ohlcv_data)
-        cd = _reload(monkeypatch, tmp_path, extra_modules=[ak_module, tt_module])
+        cd = _reload(monkeypatch, tmp_path, extra_modules=[ak_module, af_module])
         cd.get_etf_history = lambda code: pd.DataFrame(ohlcv_data)
         monkeypatch.setattr(cd, "today", lambda: datetime.date(2026, 5, 20))
 
@@ -173,7 +173,7 @@ class TestSectorAggregationWithoutVolumeCol:
     def test_sector_aggregation_called_without_volume_col(self, monkeypatch, tmp_path):
         """_run_sector_aggregation must not reference 成交额 or volume_col."""
         from src import config
-        from src import akshare_client as ak_module, ttfund_client as tt_module
+        from src import akshare_client as ak_module, akshare_fund_client as af_module
         import importlib
 
         import akshare as ak
@@ -202,15 +202,15 @@ class TestSectorAggregationWithoutVolumeCol:
         ak.fund_etf_category_ths = lambda: ths_mock
 
         importlib.reload(ak_module)
-        importlib.reload(tt_module)
+        importlib.reload(af_module)
 
-        cd = _reload(monkeypatch, tmp_path, extra_modules=[ak_module, tt_module])
+        cd = _reload(monkeypatch, tmp_path, extra_modules=[ak_module, af_module])
         monkeypatch.setattr(cd, "today", lambda: datetime.date(2026, 5, 20))
 
         ak.macro_china_market_margin_sh = lambda: pd.DataFrame({"date": ["2026-05-20"], "balance": [1e9]})
         ak.stock_hsgt_hist_em = lambda *a, **kw: pd.DataFrame({"date": ["2026-05-20"], "flow": [100]})
         ak.stock_us_spot_em = lambda: pd.DataFrame({"名称": ["标普500指数"], "最新价": [5000]})
-        tt_module.get_nav_history = lambda code, rng: {"data": {"nav_history": {"items": []}}}
+        af_module.get_nav_history = lambda code, rng: {"data": {"nav_history": {"items": []}}}
 
         result = cd.run_close_mode()
 

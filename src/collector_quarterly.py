@@ -1,8 +1,8 @@
 """Quarterly data collector — runs on the 15th of quarter-end months (Mar/Jun/Sep/Dec).
 
 Data collected:
-  - 公募基金持仓（股票、债券）via ttfund_client.get_holdings(fund_id, "all")
-  - 指数估值分位（季度）via ttfund_client.get_index_info(idx, "all")
+  - 公募基金持仓（股票、债券）via akshare_fund_client.get_holdings(fund_id, "all")
+  - 指数估值分位（季度）via akshare_fund_client.get_index_info(idx, "all")
 
 CLI: python collector_quarterly.py
 """
@@ -14,7 +14,7 @@ from pathlib import Path
 
 from src import config, logger as logger_module
 from src.storage import save_csv, save_json
-from src.ttfund_client import get_holdings, get_index_info
+from src.akshare_fund_client import get_holdings, get_index_info
 
 
 # ── Clock stub ─────────────────────────────────────────────────────────────────

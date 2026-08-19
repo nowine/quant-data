@@ -29,10 +29,17 @@ def test_run_quarterly_returns_dict(monkeypatch, tmp_path):
     monkeypatch.setattr(ak_module, "get_etf_scale", lambda: pd.DataFrame({"code": ["510300"], "scale": [1e9]}))
     monkeypatch.setattr(ak_module, "get_north_flow", lambda sym, months: pd.DataFrame({"date": ["2026-05-20"], "flow": [100]}))
 
+    from src import akshare_fund_client as af_module
+    importlib.reload(af_module)
+    monkeypatch.setattr(af_module, "get_holdings", lambda fund_id, holding_type: {"datas": []})
+    monkeypatch.setattr(af_module, "get_index_info", lambda idx, scope: {})
+
     from src import collector_quarterly
     importlib.reload(collector_quarterly)
     # Stub: day 15, quarterly month (3,6,9,12)
     monkeypatch.setattr(collector_quarterly, "today", lambda: datetime.date(2026, 3, 15))
+    # Skip the 1.1s rate-limit sleep between index fetches — we're mocked anyway
+    monkeypatch.setattr(collector_quarterly.time, "sleep", lambda s: None)
 
     result = collector_quarterly.run_quarterly()
 
@@ -51,16 +58,18 @@ def test_run_quarterly_calls_get_holdings(monkeypatch, tmp_path):
 
     holdings_calls = []
 
-    from src import ttfund_client as tf_module
-    importlib.reload(tf_module)
+    from src import akshare_fund_client as af_module
+    importlib.reload(af_module)
     def track_holdings(fund_id, holding_type):
         holdings_calls.append((fund_id, holding_type))
         return {"datas": []}
-    monkeypatch.setattr(tf_module, "get_holdings", track_holdings)
+    monkeypatch.setattr(af_module, "get_holdings", track_holdings)
 
     from src import collector_quarterly
     importlib.reload(collector_quarterly)
     monkeypatch.setattr(collector_quarterly, "today", lambda: datetime.date(2026, 3, 15))
+    # Skip the 1.1s rate-limit sleep — we just want to verify the call pattern
+    monkeypatch.setattr(collector_quarterly.time, "sleep", lambda s: None)
 
     collector_quarterly.run_quarterly()
 
