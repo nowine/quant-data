@@ -26,6 +26,11 @@ def save_csv(df: pd.DataFrame, filepath: str, append: bool = False) -> None:
 def load_csv(filepath: str) -> pd.DataFrame:
     """Load a CSV file into a DataFrame.
 
+    Preserves the '代码' (ETF code) column as str when present — this matters
+    because akshare_client.get_etf_snapshot writes codes as str (e.g. "159530")
+    to keep leading zeros intact and to support string-based membership checks
+    downstream (e.g. ``df["代码"] == "159530"`` in collector_daily._run_premium_rate_for_user_holdings).
+
     Args:
         filepath: Path to the CSV file.
 
@@ -38,7 +43,10 @@ def load_csv(filepath: str) -> pd.DataFrame:
     path = Path(filepath)
     if not path.exists():
         raise FileNotFoundError(f"CSV file not found: {filepath}")
-    return pd.read_csv(path, encoding='utf-8')
+    df = pd.read_csv(path, encoding='utf-8')
+    if "代码" in df.columns:
+        df["代码"] = df["代码"].astype(str)
+    return df
 
 
 def exists_today(filepath: str) -> bool:
