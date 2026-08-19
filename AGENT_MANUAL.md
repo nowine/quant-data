@@ -24,7 +24,9 @@
 ### 环境变量
 
 ```bash
-export TTFUND_APIKEY="ttf_sk_l..."   # 天天基金 API 密钥（必需）
+# TTFUND_APIKEY 已废弃 (Phase 1 迁移完成, 2026-08-20): akshare_fund_client 替代 ttfund_client,
+# 无需密钥。 保留环境变量设置仅为向后兼容。 详见 docs/adr-002-ttfund-to-akshare.md
+# export TTFUND_APIKEY="ttf_sk_l..."   # DEPRECATED — 不再需要
 export PYTHONPATH=.
 ```
 
@@ -206,9 +208,13 @@ df = get_industry_alloc(2025)  # 基金行业配置（东方财富），缓存 9
 
 ---
 
-### 3.2 天天基金数据（需要 TTFUND_APIKEY）
+### 3.2 天天基金数据（DEPRECATED 2026-08-20 — akshare 已替代）
 
-天天基金数据源在 `src/ttfund_client.py`，所有接口调用间隔 ≥1 秒（防限流）。
+> ⚠️ **本节为历史参考**。Phase 1 迁移后，天天基金 API (`ttfund_client`) 被 `akshare_fund_client` 取代。
+> 函数签名保持不变以实现零成本迁移，但实现后端为公开的 akshare。
+> 无需 `TTFUND_APIKEY`。详见 `docs/adr-002-ttfund-to-akshare.md` 和 `docs/phase-2-followup.md`。
+
+天天基金数据源在 `src/ttfund_client.py` (已删除)，所有接口调用间隔 ≥1 秒（防限流）。
 
 ```python
 from src.ttfand_client import (

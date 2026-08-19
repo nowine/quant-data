@@ -23,7 +23,7 @@ quant-data/
 ├── tests/                  # 测试文件（TDD）
 ├── docs/
 │   ├── SDD_Workflow_Log.md
-│   └── ttfund_api_fields.md  # TTFUND API 字段映射
+│   └── ttfund_api_fields.md  # TTFUND API 字段映射（已废弃 — Phase 1 迁移后无引用）
 ├── Dockerfile
 └── docker-compose.yml
 ```
