@@ -247,8 +247,8 @@ def _run_sector_aggregation() -> pd.DataFrame:
     return rank_sectors(agg)
 
 
-def _run_premium_rate_for_user_holdings() -> pd.DataFrame:
-    """Compute ETF premium/discount rates for user holdings.
+def _run_premium_rate_for_holdings(holders: list[dict]) -> pd.DataFrame:
+    """Compute ETF premium/discount rates for an arbitrary holder list.
 
     Requires:
     - Yesterday's close-mode etf_snapshot (for snapshot price)
@@ -278,10 +278,10 @@ def _run_premium_rate_for_user_holdings() -> pd.DataFrame:
         )
         return pd.DataFrame()
 
-    for holding in config.USER_HOLDINGS:
+    for holding in holders:
         code = holding["code"]
-        name = holding["name"]
-        sector = holding["sector"]
+        name = holding.get("name", "")
+        sector = holding.get("sector")
         # snapshot price: find row by code
         snapshot_row = snapshot_df[snapshot_df["代码"] == code]
         if snapshot_row.empty:
@@ -317,6 +317,11 @@ def _run_premium_rate_for_user_holdings() -> pd.DataFrame:
             continue
 
     return pd.DataFrame(rows)
+
+
+def _run_premium_rate_for_user_holdings() -> pd.DataFrame:
+    """Back-compat thin wrapper for USER_HOLDINGS — see _run_premium_rate_for_holdings."""
+    return _run_premium_rate_for_holdings(config.USER_HOLDINGS)
 
 
 # ── Mode: close ────────────────────────────────────────────────────────────────
@@ -412,18 +417,18 @@ def run_close_mode() -> dict[str, dict]:
     return results
 
 
-def _run_tech_indicators_for_user_holdings() -> pd.DataFrame:
-    """Compute technical indicators for each user holding.
+def _run_tech_indicators_for_holdings(holders: list[dict]) -> pd.DataFrame:
+    """Compute technical indicators for an arbitrary holder list.
 
     Fetches OHLCV history from akshare get_etf_history, computes MA20/60,
     RSI, ATR, Bollinger, MACD, volume_ratio.
     Returns empty DataFrame if no data available.
     """
     rows = []
-    for holding in config.USER_HOLDINGS:
+    for holding in holders:
         code = holding["code"]
-        name = holding["name"]
-        sector = holding["sector"]
+        name = holding.get("name", "")
+        sector = holding.get("sector")
 
         # Get OHLCV history from akshare (open/high/low/close/volume)
         try:
@@ -480,6 +485,11 @@ def _run_tech_indicators_for_user_holdings() -> pd.DataFrame:
             continue
 
     return pd.DataFrame(rows)
+
+
+def _run_tech_indicators_for_user_holdings() -> pd.DataFrame:
+    """Back-compat thin wrapper for USER_HOLDINGS — see _run_tech_indicators_for_holdings."""
+    return _run_tech_indicators_for_holdings(config.USER_HOLDINGS)
 
 
 # ── Mode: morning ──────────────────────────────────────────────────────────────
