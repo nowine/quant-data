@@ -33,6 +33,10 @@ from src.tech_indicator import (
     calc_macd,
     calc_premium_rate,
 )
+from src.extra_holdings import (
+    parse_extra_holdings_arg,
+    build_extra_holdings_set,
+)
 from src.portfolio_calc import (
     calc_sharpe,
     calc_volatility,
@@ -324,20 +328,103 @@ def _run_premium_rate_for_user_holdings() -> pd.DataFrame:
     return _run_premium_rate_for_holdings(config.USER_HOLDINGS)
 
 
+# ── Extra-holdings wiring (ADR-003) ───────────────────────────────────────────
+
+
+def _resolve_extra_holdings(
+    raw: str | None,
+    existing_codes: set[str] | None = None,
+) -> list[dict]:
+    """Parse + enrich + dedup the --extra-holdings CLI value.
+
+    Args:
+        raw: JSON array string from CLI (see ADR-003 §CLI 契约). None/blank → [].
+        existing_codes: codes already in the static lists (USER_HOLDINGS,
+            ETF_WATCH_LIST). Duplicates get filtered with one warn log per
+            duplicate. None treated as empty set.
+
+    Returns:
+        List of holder dicts [{code, name, sector}] with no overlap with
+        existing_codes. Empty list on parse error, empty input, or akshare
+        failure (best-effort semantics per ADR §后果).
+
+    Raises:
+        ValueError: only on malformed JSON (caller's CLI layer should catch).
+            All other failure modes degrade gracefully.
+    """
+    if existing_codes is None:
+        existing_codes = set()
+    if not raw or not raw.strip():
+        return []
+
+    parsed = parse_extra_holdings_arg(raw)
+    if not parsed:
+        return []
+
+    # Akshare enrichment step — may fail (network, schema drift, etc.).
+    try:
+        enriched_df = build_extra_holdings_set([h["code"] for h in parsed])
+    except Exception as e:
+        logger_module.log_collect(
+            task="extra_holdings_enrich",
+            source="akshare_fund_name_em",
+            status="error",
+            rows=0,
+            elapsed_sec=0,
+            message=f"extra-holdings akshare enrichment failed: {e}",
+        )
+        return []
+
+    # Build name lookup and merge with parsed codes.
+    name_by_code = dict(zip(enriched_df["code"].astype(str), enriched_df["name"].astype(str)))
+
+    result: list[dict] = []
+    seen_codes: set[str] = set()
+    for entry in parsed:
+        code = entry["code"]
+        if code in existing_codes:
+            logger_module.log_collect(
+                task="extra_holdings_dedup",
+                source="config",
+                status="info",
+                rows=0,
+                elapsed_sec=0,
+                message=f"extra-holdings: dedup {code} (already in static list)",
+            )
+            continue
+        if code in seen_codes:
+            # Same code appears twice in the CLI arg; warn but don't repeat.
+            continue
+        seen_codes.add(code)
+        # Prefer caller-supplied name/sector; fall back to akshare enrichment;
+        # leave sector None when neither source has it.
+        merged = {"code": code}
+        merged["name"] = entry.get("name") or name_by_code.get(code, "")
+        merged["sector"] = entry.get("sector")
+        result.append(merged)
+    return result
+
+
 # ── Mode: close ────────────────────────────────────────────────────────────────
 
-def run_close_mode() -> dict[str, dict]:
+def run_close_mode(extra: str | None = None) -> dict[str, dict]:
     """Collect end-of-day data: ETF snapshot, margin, north flow, NAV.
 
     Runs collect_if_missing for each item so already-captured files are skipped.
     Errors are accumulated in a shared list and returned in the result dict
     so the agent knows which sources failed and what to do.
 
+    Args:
+        extra: Optional JSON string of extra holdings (see ADR-003). When set,
+            the parsed codes run through NAV collection only (per ADR Q7=A).
+            Failures land in ``result["errors_extra"]``, separate from main errors.
+
     Returns:
         Dict mapping task name -> result dict with status/rows/elapsed_sec.
-        Always includes an "errors" key: list[str] of structured error messages.
+        Always includes "errors" and "errors_extra" keys.
     """
     errors: list[str] = []
+    errors_extra: list[str] = []
     results = {}
 
     # 1. ETF 全市场行情快照
@@ -413,7 +500,31 @@ def run_close_mode() -> dict[str, dict]:
         suggestion="use LLM to search current US stock index data (Nasdaq/S&P/Dow)",
     )
 
+    # 7. Extra-holdings NAV (ADR-003 Q7=A: close mode runs NAV only for extras).
+    #    Use a separate error sink so extra failures don't pollute main errors.
+    existing_nav_codes = {etf["code"] for etf in config.ETF_WATCH_LIST}
+    extra_holders = _resolve_extra_holdings(extra, existing_codes=existing_nav_codes)
+    extra_nav = {}
+    for holding in extra_holders:
+        code = holding["code"]
+        path = _nav_path(code)
+
+        def fetch_extra_nav(c=code):
+            raw_nav = get_nav_history(c, "y")
+            items = raw_nav.get("data", {}).get("nav_history", {}).get("items", [])
+            return pd.DataFrame(items)
+
+        extra_nav[code] = _collect_csv(
+            f"extra_nav_{code}",
+            fetch_extra_nav,
+            path,
+            errors_extra,
+            suggestion=f"check akshare nav_history for extra holding {code}",
+        )
+    results["extra_nav"] = extra_nav
+
     results["errors"] = errors
+    results["errors_extra"] = errors_extra
     return results
 
 
@@ -494,17 +605,21 @@ def _run_tech_indicators_for_user_holdings() -> pd.DataFrame:
 
 # ── Mode: morning ──────────────────────────────────────────────────────────────
 
-def run_morning_mode() -> dict[str, dict]:
+def run_morning_mode(extra: str | None = None) -> dict[str, dict]:
     """Collect pre-market data: gold + macro, index valuations, premium rates.
 
-    Errors are accumulated in a shared list and returned in the result dict
-    so the agent knows which sources failed and what to do.
+    Args:
+        extra: Optional JSON string of extra holdings (see ADR-003). When set,
+            parsed codes run through premium + tech_indicator collection
+            (per ADR Q8=A). Failures land in ``result["errors_extra"]``,
+            separate from main errors.
 
     Returns:
         Dict mapping task name -> result dict with status/rows/elapsed_sec.
-        Always includes an "errors" key: list[str] of structured error messages.
+        Always includes "errors" and "errors_extra" keys.
     """
     errors: list[str] = []
+    errors_extra: list[str] = []
     results = {}
 
     # 1. 黄金 + 宏观指标
@@ -568,7 +683,48 @@ def run_morning_mode() -> dict[str, dict]:
             suggestion=f"check akshare etf_history for {code} or use LLM",
         )
 
+    # 5. Extra-holdings: premium + tech_indicator (ADR-003 Q8=A).
+    #    Errors land in errors_extra; never pollute main errors.
+    existing_morning_codes = {h["code"] for h in config.USER_HOLDINGS}
+    extra_holders = _resolve_extra_holdings(extra, existing_codes=existing_morning_codes)
+
+    if extra_holders:
+        # Build a single-call DataFrame and split into per-code premium paths.
+        # The premium rate function reads USER_HOLDINGS once; we adapt it to
+        # operate on the merged list to keep a single NAV roundtrip per code.
+        def fetch_extra_premium_all():
+            return _run_premium_rate_for_holdings(extra_holders)
+
+        for holding in extra_holders:
+            code = holding["code"]
+            path = _premium_path(code)
+            # Each code gets its own result entry, but the underlying work is
+            # shared via fetch_extra_premium_all (cheap to call repeatedly —
+            # the underlying CSV load is the only cost).
+            results[f"extra_premium_{code}"] = _collect_csv(
+                f"extra_premium_{code}",
+                fetch_extra_premium_all,
+                path,
+                errors_extra,
+                suggestion=f"extra premium for {code} requires yesterday's snapshot",
+            )
+
+        def fetch_extra_tech_all():
+            return _run_tech_indicators_for_holdings(extra_holders)
+
+        for holding in extra_holders:
+            code = holding["code"]
+            path = _tech_indicator_path(code)
+            results[f"extra_tech_{code}"] = _collect_csv(
+                f"extra_tech_{code}",
+                fetch_extra_tech_all,
+                path,
+                errors_extra,
+                suggestion=f"check akshare etf_history for extra holding {code}",
+            )
+
     results["errors"] = errors
+    results["errors_extra"] = errors_extra
     return results
 
 
@@ -582,6 +738,15 @@ def main() -> None:
         default="close",
         help="Run mode: 'close' (after market, 15:30) or 'morning' (before open, 08:00)",
     )
+    parser.add_argument(
+        "--extra-holdings",
+        default=None,
+        help=(
+            "Ad-hoc JSON array of {code, name?, sector?} for one-shot monitoring "
+            "(see ADR-003). Empty/missing = no extras. "
+            'Example: --extra-holdings \'[{"code":"512480"}]\''
+        ),
+    )
     args = parser.parse_args()
 
     if not is_trading_day():
@@ -590,14 +755,14 @@ def main() -> None:
 
     if args.mode == "close":
         print("Running close mode...")
-        result = run_close_mode()
+        result = run_close_mode(extra=args.extra_holdings)
         success = sum(1 for v in result.values()
                       if isinstance(v, dict) and v.get("status") == "success")
         total = len(result)
         print(f"Done: {success}/{total} tasks succeeded.")
     else:
         print("Running morning mode...")
-        result = run_morning_mode()
+        result = run_morning_mode(extra=args.extra_holdings)
         success = sum(1 for v in result.values()
                       if isinstance(v, dict) and v.get("status") == "success")
         total = len(result)

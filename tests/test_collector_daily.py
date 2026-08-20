@@ -315,7 +315,7 @@ def test_cli_close_mode(monkeypatch, tmp_path):
     monkeypatch.setattr(collector_daily, "today", lambda: datetime.date(2026, 5, 20))
 
     close_called = False
-    def mock_close():
+    def mock_close(extra=None):
         nonlocal close_called
         close_called = True
         return {}
@@ -349,7 +349,7 @@ def test_cli_morning_mode(monkeypatch, tmp_path):
     monkeypatch.setattr(collector_daily, "today", lambda: datetime.date(2026, 5, 20))
 
     morning_called = False
-    def mock_morning():
+    def mock_morning(extra=None):
         nonlocal morning_called
         morning_called = True
         return {}
@@ -385,7 +385,7 @@ def test_cli_defaults_to_close(monkeypatch, tmp_path):
     monkeypatch.setattr(collector_daily, "today", lambda: datetime.date(2026, 5, 20))
 
     close_called = False
-    def mock_close():
+    def mock_close(extra=None):
         nonlocal close_called
         close_called = True
         return {}
