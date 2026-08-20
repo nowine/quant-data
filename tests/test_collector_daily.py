@@ -322,7 +322,7 @@ def test_cli_close_mode(monkeypatch, tmp_path):
     monkeypatch.setattr(collector_daily, "run_close_mode", mock_close)
 
     import sys
-    monkeypatch.setattr(sys, "argv", ["collector_daily.py", "--mode=close"])
+    monkeypatch.setattr(sys, "argv", ["collector_daily.py", "--mode=close", "--config", "/tmp/fake.json"]); monkeypatch.setattr("src.config.init_config", lambda path: None)
     collector_daily.main()
 
     assert close_called, "main() should call run_close_mode for --mode=close"
@@ -356,7 +356,7 @@ def test_cli_morning_mode(monkeypatch, tmp_path):
     monkeypatch.setattr(collector_daily, "run_morning_mode", mock_morning)
 
     import sys
-    monkeypatch.setattr(sys, "argv", ["collector_daily.py", "--mode=morning"])
+    monkeypatch.setattr(sys, "argv", ["collector_daily.py", "--mode=morning", "--config", "/tmp/fake.json"]); monkeypatch.setattr("src.config.init_config", lambda path: None)
     collector_daily.main()
 
     assert morning_called, "main() should call run_morning_mode for --mode=morning"
@@ -392,7 +392,7 @@ def test_cli_defaults_to_close(monkeypatch, tmp_path):
     monkeypatch.setattr(collector_daily, "run_close_mode", mock_close)
 
     import sys
-    monkeypatch.setattr(sys, "argv", ["collector_daily.py"])
+    monkeypatch.setattr(sys, "argv", ["collector_daily.py", "--config", "/tmp/fake.json"]); monkeypatch.setattr("src.config.init_config", lambda path: None)
     collector_daily.main()
 
     assert close_called

@@ -739,6 +739,15 @@ def main() -> None:
         help="Run mode: 'close' (after market, 15:30) or 'morning' (before open, 08:00)",
     )
     parser.add_argument(
+        "--config",
+        required=True,
+        help=(
+            "Path to etf_config.json (see ADR-004). REQUIRED. "
+            "Contains etf_watch_list / user_holdings / index_watch_list / sector_mapping. "
+            "Default seed: examples/etf_config.example.json (copy & edit for production)."
+        ),
+    )
+    parser.add_argument(
         "--extra-holdings",
         default=None,
         help=(
@@ -748,6 +757,17 @@ def main() -> None:
         ),
     )
     args = parser.parse_args()
+
+    # Load externalized config FIRST (ADR-004). Fail-fast on any error
+    # (per ADR-004 Q13-A / Q20-B): bad path / bad JSON / schema violation →
+    # ConfigLoadError → exit non-zero so cron / 皮皮 sees the failure.
+    from src.config import init_config
+    from src.config_loader import ConfigLoadError
+    try:
+        init_config(args.config)
+    except ConfigLoadError as e:
+        print(f"[FATAL] {e}", file=sys.stderr)
+        sys.exit(1)
 
     if not is_trading_day():
         print(f"Today ({today()}) is not a trading day — nothing to do.")

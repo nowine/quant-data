@@ -230,9 +230,12 @@ class TestCLIExtraHoldings:
 
         monkeypatch.setattr(cd, "run_morning_mode", mock_morning)
         monkeypatch.setattr(cd, "is_trading_day", lambda: True)
+        # ADR-004: --config is now required; stub it so tests don't need real files.
+        monkeypatch.setattr("src.config.init_config", lambda path: None)
         monkeypatch.setattr(
             "sys.argv",
             ["collector_daily.py", "--mode", "morning",
+             "--config", "/tmp/fake.json",
              "--extra-holdings", '[{"code": "512480"}]'],
         )
 
@@ -250,9 +253,11 @@ class TestCLIExtraHoldings:
 
         monkeypatch.setattr(cd, "run_morning_mode", mock_morning)
         monkeypatch.setattr(cd, "is_trading_day", lambda: True)
+        monkeypatch.setattr("src.config.init_config", lambda path: None)
         monkeypatch.setattr(
             "sys.argv",
-            ["collector_daily.py", "--mode", "morning"],
+            ["collector_daily.py", "--mode", "morning",
+             "--config", "/tmp/fake.json"],
         )
 
         cd.main()
