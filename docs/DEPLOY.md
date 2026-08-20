@@ -100,6 +100,87 @@
 | `/root/secureshare/files/ETF轮动分析框架/data/logs/` | 采集日志 | logger.py |
 | `/root/secureshare/files/ETF轮动分析框架/{YYYY-MM}/` | 报告输出 | 皮皮 agent |
 
+## 配置外部化 (2026-08-21 起生效)
+
+**背景**:quant-data 的 4 个 ETF 监控列表常量 (ETF_WATCH_LIST / INDEX_WATCH_LIST / USER_HOLDINGS / SECTOR_MAPPING) 原本 hardcode 在 `src/config.py`,皮皮 (data-collector agent) 调整监控标的必须改代码、走 git 流程。现已外部化到 JSON,详见 ADR-004。
+
+### 皮皮怎么用
+
+**Step 1**:创建/编辑 `etf_config.json` (路径由你定,推荐 `/root/secureshare/files/ETF轮动分析框架/config/etf_config.json`):
+
+```json
+{
+  "etf_watch_list": [
+    {"code": "510300", "name": "沪深300ETF华泰柏瑞", "index": "沪深300"}
+  ],
+  "user_holdings": [
+    {"code": "159530", "name": "机器人ETF易方达", "sector": "机器人"}
+  ],
+  "index_watch_list": ["沪深300", "中证500"],
+  "sector_mapping": {
+    "机器人": ["159530"],
+    "宽基": ["510300", "510500"]
+  }
+}
+```
+
+- 所有 4 个 top-level key 都是**可选**;空文件 `{}` 也合法 (会得到 4 个空列表)
+- 每个 entry 的 `code` 必须是 6 位数字字符串,`name` 不能为空,`index` / `sector` 必填
+- 多余字段 (如 `notes`、`added_at`) 会被忽略,不会报错
+- 完整 schema 参考 `src/config.py` 顶部 docstring 或 `src/config_schema.py::ETF_CONFIG_SCHEMA`
+
+**Step 2**:在 cron prompt / 命令里把路径传给 collector:
+
+```bash
+cd /root/.openclaw/workspace-agents/fullstack-engineer/projects/quant-data
+export PYTHONPATH=.
+python3 src/collector_daily.py --mode=morning --config /root/secureshare/files/ETF轮动分析框架/config/etf_config.json
+```
+
+**Step 3**:下次 cron 自动加载新 JSON(每次 isolated session 重新读文件)。
+
+### cron prompt 改造示例
+
+**改前** (皮皮在 prompt 里硬编码标的):
+
+```
+## 持仓
+- 159530 机器人ETF
+- 588750 芯片ETF
+
+## 执行
+python3 src/collector_daily.py --mode=morning
+```
+
+**改后** (标的走 JSON,皮皮只维护路径):
+
+```
+## 持仓
+- 参考配置: /root/secureshare/files/ETF轮动分析框架/config/etf_config.json
+
+## 执行
+python3 src/collector_daily.py --mode=morning \
+  --config /root/secureshare/files/ETF轮动分析框架/config/etf_config.json
+```
+
+### 故障排查
+
+| 症状 | 原因 | 修复 |
+|------|------|------|
+| `ConfigLoadError: etf_config.json not found` | 路径不对或文件不存在 | 检查 `--config` 参数 + 文件存在 |
+| `etf_config.json failed schema validation` | JSON 不符合 schema | 看错误信息里的路径 (如 `etf_watch_list[3].code`),改对应 entry |
+| cron exit code 非零,但没有输出 | JSON 解析失败 | 用 `python3 -m json.tool <path>` 验证 JSON 语法 |
+| 启动后采集到的列表是空的 | JSON 里某个 key 漏写 | 检查 4 个 top-level key 名字拼写 |
+
+### 回滚
+
+如果新版配置系统出问题,回滚靠 git revert (config.py 在 commit `334717b` 之前是 hardcoded):
+
+```bash
+git revert 334717b 9657c73 4da4572
+# 然后删掉 collector_daily 的 --config 参数
+```
+
 ## 关键故障排查
 
 | 现象 | 检查项 |
