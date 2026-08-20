@@ -56,11 +56,13 @@
 
 **反查实现策略**:
 
-1. 冷启动拉 `ak.fund_name_em()` 全量（一次 ~5-10s），落盘到 `~/.cache/quant-data/fund_name.parquet`
-2. 后续调用先查 parquet，过期（>24h）再刷一次
+1. 冷启动拉 `ak.fund_name_em()` 全量（一次 ~5-10s），落盘到 `~/.cache/quant-data/fund_name.csv`
+2. 后续调用先查 csv，过期（>24h）再刷一次
 3. 解析 `code` → 取 `基金简称` 作为 `name`；`sector` 留 `None`，由调用方（未来 collector_daily 调用层）自行补或从 `USER_HOLDINGS` 推断
 
 **为什么不缓存到 `config.py`**: sector 没有自动数据源，且强行编 sector 字典会让 config 变成双重权威源（违反 Q6 的"一次性"原则）。
+
+**为什么不用 parquet 用 csv**: 项目 `requirements.txt` 只锁定 `pandas>=2.0.0`，没引入 pyarrow。csv 是 pandas 原生支持，无新依赖，足够单列 [code, name] 的小表（~27548 行）。
 
 ### 临时标的触发范围 (Q4=Q7=A, Q8=A, Q10=B)
 
