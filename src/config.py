@@ -1,7 +1,49 @@
 """Configuration for ETF Data Collection System.
 
-This module contains all static configuration for the data collection system.
-It has no business logic, does not read/write files, and does not call any APIs.
+Two kinds of configuration live here:
+
+1. **Hard-coded infrastructure constants** — paths, timeouts, validation
+   thresholds. These never change at runtime and live in this file for IDE
+   autocomplete / type safety. Includes: DATA_DIR, SLOW_API_TIMEOUT, CACHE_TTL,
+   VALIDATION_RULES.
+
+2. **Externalized ETF watch-list constants** — 皮皮 (data-collector agent) is
+   the only operator who edits these in production. They default to the
+   values below at import time (back-compat for tests / single-file scripts),
+   but are REPLACED at runtime by `init_config(path)` when the collector
+   loads etf_config.json. Includes: ETF_WATCH_LIST, INDEX_WATCH_LIST,
+   USER_HOLDINGS, SECTOR_MAPPING.
+
+See ADR-004 (docs/adr-004-externalize-config.md) for the full rationale.
+
+────────────────────────────────────────────────────────────────────────────────
+JSON SCHEMA (etf_config.json) — single source of truth lives in src/config_schema.py
+────────────────────────────────────────────────────────────────────────────────
+
+Top level: a JSON object. All four keys are OPTIONAL; missing keys default to
+empty containers. Extra top-level keys are silently ignored.
+
+  {
+    "etf_watch_list": [
+      { "code": "510300", "name": "沪深300ETF华泰柏瑞", "index": "沪深300" }
+      // required: code (6-digit str), name (non-empty str), index (non-empty str)
+      // extra fields allowed (e.g. notes, added_at) and ignored
+    ],
+    "user_holdings": [
+      { "code": "159530", "name": "机器人ETF易方达", "sector": "机器人" }
+      // required: code, name, sector; extra fields ignored
+    ],
+    "index_watch_list": ["沪深300", "中证500", ...],  // non-empty strings
+    "sector_mapping": {
+      "机器人": ["159530"],
+      "宽基": ["510300", "510500", ...]
+      // keys: sector names; values: arrays of 6-digit codes
+    }
+  }
+
+Schema is enforced by src/config_schema.validate_config (Draft 2020-12).
+Validation errors include the JSON-pointer path so 皮皮 can fix the file
+without reading code.
 """
 
 import os
@@ -165,3 +207,77 @@ VALIDATION_RULES = {
     "NAV": {"min": 0, "max": 100, "nullable": False},
     "NORTH_FLOW": {"min": -500, "max": 500, "nullable": True},  # 亿元
 }
+
+
+# =============================================================================
+# Runtime loader — replaces 4 ETF list constants from etf_config.json
+# =============================================================================
+# Per ADR-004 Q6: config.py is a thin wrapper that loads JSON at process start
+# via init_config(path). The defaults above remain valid (back-compat per Q22-B)
+# for tests and ad-hoc scripts. In production cron flow, collector_daily calls
+# init_config() before any read of these 4 constants.
+#
+# Fail-fast per Q13-A / Q20-B: bad path / bad JSON / schema violation → raise
+# ConfigLoadError, no silent fallback. The cron job will see a non-zero exit
+# code and the operator (皮皮) will fix the JSON file directly.
+
+# Module-level flag tracking whether init_config has succeeded.
+_initialized: bool = False
+
+
+def is_initialized() -> bool:
+    """Return True iff init_config() has succeeded in this process."""
+    return _initialized
+
+
+def init_config(path) -> None:
+    """Load etf_config.json and replace the 4 ETF list constants in-place.
+
+    Must be called exactly once per process, before any code reads
+    ``config.ETF_WATCH_LIST`` etc. via attribute lookup. After this call
+    succeeds, attribute lookups for the 4 lists return the loaded values;
+    existing imports done before this call (e.g. ``from src.config import
+    ETF_WATCH_LIST``) keep their original (default) reference — this is the
+    back-compat guarantee relied on by tests/test_config.py.
+
+    Args:
+        path: Path-like pointing to etf_config.json.
+
+    Raises:
+        ConfigLoadError: File / parse / schema failure. No fallback (Q20-B).
+        RuntimeError: If called more than once (signals a configuration bug
+            in the calling code; the second call is rejected rather than
+            silently overwriting because the operator only sees one cron
+            prompt and a second init usually means the path changed mid-run).
+    """
+    global _initialized
+
+    if _initialized:
+        raise RuntimeError(
+            "init_config() called twice in the same process. "
+            "皮皮 should not need to reconfigure mid-run; "
+            "if this is a test, use importlib.reload(src.config) instead."
+        )
+
+    from src.config_loader import load_config  # lazy: keeps this module
+                                              # importable without jsonschema
+
+    loaded = load_config(path)
+
+    # Mutate module attributes — attribute lookups (`config.ETF_WATCH_LIST`)
+    # see the new values; imports done before this call stay frozen.
+    ETF_WATCH_LIST = loaded["etf_watch_list"]
+    USER_HOLDINGS = loaded["user_holdings"]
+    INDEX_WATCH_LIST = loaded["index_watch_list"]
+    SECTOR_MAPPING = loaded["sector_mapping"]
+
+    # Direct module-dict mutation ensures `from src.config import X` calls
+    # in OTHER modules that fire after this point also see the new value.
+    import sys
+    this_module = sys.modules[__name__]
+    this_module.ETF_WATCH_LIST = ETF_WATCH_LIST
+    this_module.USER_HOLDINGS = USER_HOLDINGS
+    this_module.INDEX_WATCH_LIST = INDEX_WATCH_LIST
+    this_module.SECTOR_MAPPING = SECTOR_MAPPING
+
+    _initialized = True
