@@ -190,8 +190,68 @@ git revert 334717b 9657c73 4da4572
 | 数据目录空了 | 检查 `/root/secureshare/files/ETF轮动分析框架/data/` 是否还挂载, SecureShare 容器是否在跑 |
 | TTFUND 引用 | **不应再有**; 如 grep 命中 → 检查 `docs/adr-002-ttfund-to-akshare.md` 是否完整 |
 
+---
+
+## etf_config.json (ADR-004)
+
+**皮皮调整监控标的的唯一合法途径** — 不改代码,改 JSON。
+
+### 生产路径(约定俗成)
+
+```
+/root/secureshare/files/ETF轮动分析框架/config/etf_config.json
+```
+
+### 首次部署
+
+```bash
+cp projects/quant-data/examples/etf_config.example.json \
+   /root/secureshare/files/ETF轮动分析框架/config/etf_config.json
+```
+
+### 跟 4 个 cron job 的契约
+
+每个 cron prompt 里调 collector 的命令行都要带 `--config <path>`,例:
+
+```bash
+python3 src/collector_daily.py --mode=morning \
+    --config /root/secureshare/files/ETF轮动分析框架/config/etf_config.json
+```
+
+**省略 `--config` → argparse exit 2 → cron 报警**。所以保持路径稳定,别随意换。
+
+### 改完验证
+
+最快的方式:
+
+```bash
+cd /root/.openclaw/workspace-agents/fullstack-engineer/projects/quant-data
+export PYTHONPATH=.
+python3 src/collector_weekly.py \
+    --config /root/secureshare/files/ETF轮动分析框架/config/etf_config.json
+```
+
+即使不是周一(`Today is not Monday`)也走完 `init_config()`,说明 JSON 加载成功。
+**完整手册** 看 [`docs/CONFIG.md`](CONFIG.md)——字段语义、重叠规则、常见错误、改完验证。
+
+### Schema 错误怎么读
+
+```
+[FATAL] etf_config.json failed schema validation: <path>
+etf_config.json schema validation failed:
+  - user_holdings[0]: 'sector' is a required property
+  - index_watch_list[3]: '' is too short
+```
+
+路径(`user_holdings[0]` / `index_watch_list[3]`)直接定位 JSON 文件里的位置,改对应 entry 即可。
+
+### 何时需要 grep 代码
+
+**不要**。调整监控清单、修改持仓、增减观察标的 = 改 JSON,不是改代码。
+**例外**: 想要新的字段(如 `risk_metrics`) = 改 schema (`src/config_schema.py`) + 改 `init_config` + 加测试。这是 ADR 范畴,不是日常维护。
 ## 版本历史
 
+- **2026-08-22** — ADR-004 收尾: weekly/monthly/quarterly collector 也走 --config (`f4f031c`) + 容器化骨架 (entrypoint 路由, `848b7f5`) + docs/CONFIG.md 皮皮操作手册
 - **2026-08-20** — Phase 1: ttfund_client → akshare_fund_client 迁移 (`8e11d86`)
 - **2026-08-20** — Phase 1.1: load_csv 代码列 str/int 修复 (`80e5c47`)
 - **更早** — TTFUND_APIKEY 配置模式 (已废弃,见 ADR-002)

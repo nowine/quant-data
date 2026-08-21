@@ -1,5 +1,12 @@
 {
   "_comment": "Reference seed for etf_config.json. Copy to /root/secureshare/files/ETF轮动分析框架/config/etf_config.json (or any path you choose) and edit per your actual watch list. See src/config.py docstring for full schema; see docs/adr-004-externalize-config.md for design rationale. _comment fields are ignored by the validator.",
+  "_quick_start": {
+    "1_copy": "cp examples/etf_config.example.json /root/secureshare/files/ETF轮动分析框架/config/etf_config.json",
+    "2_verify_load": "cd /root/.openclaw/workspace-agents/fullstack-engineer/projects/quant-data && PYTHONPATH=. python3 -c \"from src.config import init_config; init_config('/root/secureshare/files/ETF轮动分析框架/config/etf_config.json'); print('OK')\"",
+    "3_user_holds_vs_watch": "user_holdings = 我现在持有的（走溢价率/技术指标）; etf_watch_list = 关注的（走 ETF 快照）。允许重叠，是有意的不是 bug",
+    "4_required_fields": "etf_watch_list entry: code(str 6位), name(str), index(str). user_holdings entry: code(str 6位), name(str), sector(str, must match sector_mapping key).",
+    "5_help": "完整操作手册看 docs/CONFIG.md（强烈推荐）"
+  },
 
   "etf_watch_list": [
     {"code": "510300", "name": "沪深300ETF华泰柏瑞", "index": "沪深300"},
