@@ -154,6 +154,7 @@ def test_run_weekly_saves_weekly_files(monkeypatch, tmp_path):
 def test_cli_runs_weekly(monkeypatch, tmp_path):
     """CLI should invoke run_weekly."""
     import importlib
+    import json
     from src import config, logger as logger_module
     importlib.reload(config)
     monkeypatch.setattr(config, "DATA_DIR", str(tmp_path))
@@ -176,8 +177,14 @@ def test_cli_runs_weekly(monkeypatch, tmp_path):
         return {}
     monkeypatch.setattr(collector_weekly, "run_weekly", mock_weekly)
 
+    # ADR-004: --config is required. Write a minimal valid config.
+    cfg = tmp_path / "etf_config.json"
+    cfg.write_text(json.dumps({
+        "etf_watch_list": [{"code": "510300", "name": "x", "index": "y"}],
+    }))
     import sys
-    monkeypatch.setattr(sys, "argv", ["collector_weekly.py"])
+    monkeypatch.setattr(sys, "argv", ["collector_weekly.py", "--config", str(cfg)])
+    config._initialized = False
     collector_weekly.main()
 
     assert weekly_called, "main() should call run_weekly()"

@@ -14,6 +14,7 @@ Usage:
 """
 
 import datetime
+import sys
 import time
 from pathlib import Path
 
@@ -279,6 +280,28 @@ def run_monthly() -> dict[str, dict]:
 # ── CLI ───────────────────────────────────────────────────────────────────────
 
 def main() -> None:
+    import argparse
+    parser = argparse.ArgumentParser(description="Monthly ETF data collector")
+    parser.add_argument(
+        "--config",
+        required=True,
+        help=(
+            "Path to etf_config.json (see ADR-004). REQUIRED. "
+            "Contains etf_watch_list / user_holdings / index_watch_list / sector_mapping. "
+            "Default seed: examples/etf_config.example.json (copy & edit for production)."
+        ),
+    )
+    args = parser.parse_args()
+
+    # Load externalized config FIRST (ADR-004). Fail-fast on any error.
+    from src.config import init_config
+    from src.config_loader import ConfigLoadError
+    try:
+        init_config(args.config)
+    except ConfigLoadError as e:
+        print(f"[FATAL] {e}", file=sys.stderr)
+        sys.exit(1)
+
     print("Running monthly collector...")
     result = run_monthly()
     success = sum(1 for v in result.values()
