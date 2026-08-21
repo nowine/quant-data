@@ -1,9 +1,29 @@
 version: '3.8'
+# quant-data collector — unified image, single service.
+#
+# Public contract: override `command` per cron job to dispatch the right collector.
+# Example invocations:
+#   podman compose run --rm collector --script daily   --mode morning --config /data/config/etf_config.json
+#   podman compose run --rm collector --script weekly  --config /data/config/etf_config.json
+#   podman compose run --rm collector --script monthly --config /data/config/etf_config.json
+#   podman compose run --rm collector --script quarterly --config /data/config/etf_config.json
+#
+# Per ADR-004: --config is REQUIRED (no fallback). Copy examples/etf_config.example.json
+# to <data-host-path>/config/etf_config.json and edit before first run.
+
 services:
   collector:
     build: .
+    image: localhost/quant-collector:latest
     volumes:
-      - /root/secureshare/files:/data
+      # Bind-mount host data dir → /data inside container. CSV/JSON output and
+      # etf_config.json both live under here.
+      - /root/secureshare/files/ETF轮动分析框架:/data
     environment:
       - PYTHONPATH=/app
-    command: python src/collector_daily.py --mode=close
+      - TZ=Asia/Shanghai
+    # Default invocation (overridden per cron job). See DEPLOY.md for the 4 cron
+    # prompt lines that set --script/--mode/--config.
+    command: ["--script", "daily", "--mode", "close", "--config", "/data/config/etf_config.json"]
+    # No long-running container — cron calls `podman run --rm` (not compose up).
+    restart: "no"
