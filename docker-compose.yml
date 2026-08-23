@@ -15,6 +15,13 @@ services:
   collector:
     build: .
     image: localhost/quant-collector:latest
+    # Run as root inside the container. Reason: legacy collector outputs (CSV,
+    # JSON, log files) under /root/secureshare/... are owned by root:root on
+    # the host (dev code path). Even with chmod 777 on the dir tree, the
+    # non-root `appuser` (uid 1000) cannot append to root-owned files. Running
+    # root in-container matches the historical dev path and keeps back-compat
+    # for existing files without a chown -R migration.
+    user: "0:0"
     volumes:
       # Bind-mount host data dir → /data inside container. CSV/JSON output and
       # etf_config.json both live under here.

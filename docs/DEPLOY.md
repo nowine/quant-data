@@ -77,18 +77,81 @@
    ```
    修复后重新开启。
 
-## 容器 vs 直接运行的注意事项
+## 容器化部署架构 (2026-08-23 起生效)
 
-项目里有 `Dockerfile` / `docker-compose.yml`,但**当前未使用**。
-它们是历史遗留,**不要重新启用**,原因:
-- akshare 在容器内访问东方财富/新浪等源可能受 DNS 限制
-- 直接跑 python 调试方便
-- 容器化会引入额外的镜像构建/缓存/僵尸状态问题 (见 MEMORY #16)
+**生产部署现在走 podman 容器隔离运行**。皮皮 (data-collector agent) 在宿主跑报告生成,但 collector (数据采集) 在容器内跑。
 
-如果未来要启用 docker:
-- 必须删掉 `docker-compose.yml` 中的 `TTFUND_APIKEY` 环境变量 (已 2026-08-20 清理)
-- 必须把 akshare 容器 DNS 配好 (docker network dns 8.8.8.8)
-- 验证 `python3 -c "import akshare; akshare.fund_open_fund_info_em('510300', indicator='单位净值走势')"`
+### 架构分层
+
+| 层 | 跑在哪 | 负责什么 | 路径视角 |
+|---|---|---|---|
+| **皮皮 agent** (data-collector) | 宿主 (root) | 读 SKILL.md → 调 collector → 生成报告 (write 工具) | 用宿主绝对路径 `/root/secureshare/files/...` |
+| **collector 容器** | podman (容器内 root, 由 compose `user: "0:0"` 控制) | akshare 抓数据 → 写 CSV/JSON/log | 用容器内路径 `/data/...`, 映射宿主同一目录 |
+| **Dockerfile** | 不变 | 多阶段构建镜像 `localhost/quant-collector:latest` | — |
+
+### 为什么容器内 root 是 OK 的
+
+容器本身是隔离的。容器内 root 能修改挂载的 `/data` (绑宿主 ETF轮动分析框架),但不能影响宿主其它路径。
+选择容器内 root 是为了匹配 dev 时代直跑路径 (避免旧 root-owned 文件需要 chown)。
+
+### 路径映射详解
+
+docker-compose.yml 一行 bind-mount 把宿主目录全量映射:
+```yaml
+volumes:
+  - /root/secureshare/files/ETF轮动分析框架:/data
+```
+
+容器内看到的路径 | 宿主看到的路径 | 内容
+---|---|---
+`/data/config/etf_config.json` | `/root/secureshare/files/ETF轮动分析框架/config/etf_config.json` | ETF 列表配置
+`/data/data/daily/` | `/root/secureshare/files/ETF轮动分析框架/data/daily/` | 每日数据 CSV/JSON
+`/data/data/weekly/` | 同上 `data/weekly/` | 每周快照
+`/data/data/monthly/` | 同上 `data/monthly/` | 月度快照
+`/data/data/logs/` | 同上 `data/logs/` | 采集日志
+`/data/{YYYY-MM}/` | `/root/secureshare/files/ETF轮动分析框架/{YYYY-MM}/` | 报告输出 (皮皮 agent 在宿主写)
+
+**皮皮 agent 永远用宿主路径** (它在宿主跑),跟容器路径**写法不同但指向同一目录**。
+
+### QUANT_DATA_DIR env 机制
+
+`src/config.py:164` 的 `DATA_DIR` 现在读 env:
+```python
+DATA_DIR = os.getenv("QUANT_DATA_DIR") or "/root/secureshare/files/ETF轮动分析框架/data"
+```
+
+- 容器内 (docker-compose 设置): `QUANT_DATA_DIR=/data/data` → DATA_DIR = `/data/data`
+- 宿主 dev 直跑 (不设 env): DATA_DIR = 旧 host 默认
+- 设置空字符串 → fallback 默认
+- 详细测试见 `tests/test_data_dir_env.py`
+
+### 验证镜像是否最新
+
+**MEMORY #7 纪律**: 代码改了必须重建镜像。
+
+```bash
+CODE_TIME=$(cd /root/.openclaw/workspace-agents/fullstack-engineer/projects/quant-data && git log -1 --format='%ci')
+IMAGE_TIME=$(podman inspect localhost/quant-collector:latest --format '{{.Created}}')
+# IMAGE_TIME > CODE_TIME 才安全
+podman build -t localhost/quant-collector:latest .
+```
+
+### Dev 直跑备选
+
+如果 podman 不可用,可在宿主直跑 collector (有 dev 依赖):
+```bash
+cd /root/.openclaw/workspace-agents/fullstack-engineer/projects/quant-data
+PYTHONPATH=. python3 src/collector_daily.py --mode=morning \
+  --config /root/secureshare/files/ETF轮动分析框架/config/etf_config.json
+```
+
+但**生产 cron 必须走 podman**,跟 SKILL.md Step 1 一致。
+
+## 容器化历史变更记录
+
+- **2026-08-21** (commit `848b7f5`): 引入 Dockerfile + docker-compose.yml,但没测容器内跑通,MEMORY #7 也漏更。
+- **2026-08-23** (commit `5d8d42f` + `待 commit`): DATA_DIR 改 env override + compose `user: 0:0` + chmod 777。容器化部署正式生效。
+- **2026-08-23**: 4 个 SKILL.md (etf-morning/evening/weekly/monthly-report) Step 1 命令同步改成 podman。
 
 ## 数据目录约定
 
