@@ -27,9 +27,40 @@ def today() -> datetime.date:
 # ── Date helpers ───────────────────────────────────────────────────────────────
 
 def is_quarterly_run_day() -> bool:
-    """Return True if today is the 15th of a quarter-end month (Mar/Jun/Sep/Dec)."""
+    """Return True if today is the 15th of a quarter-end month (Mar/Jun/Sep/Dec).
+
+    Kept as a helper for the CLI's "[info] not a quarterly run day" log line
+    and for any future caller that wants to filter on cadence. No longer used
+    to early-exit the collector (Q26, 2026-08-23 — collectors never gate on date).
+    """
     d = today()
     return d.day == 15 and d.month in (3, 6, 9, 12)
+
+
+# ── Exception classification (Q27, 2026-08-23) ────────────────────────────
+
+# See collector_weekly.py for design rationale. Identical map to keep
+# classifier output consistent across all 4 collectors.
+_EXCEPTION_HINTS: dict[str, str] = {
+    "ChunkedEncodingError": (
+        "akshare 数据源连接中断/返回不完整（常见于周末/节假日源站未更新或返回空 payload）"
+    ),
+    "ConnectionError": "akshare 数据源连接失败（网络或源站不可达）",
+    "Timeout": "akshare 数据源调用超时（可考虑重试或查缓存）",
+    "KeyError": "akshare 返回结构变更，字段缺失（需升级 akshare 版本）",
+    "ValueError": "akshare 返回数据无法解析（参数不匹配或源数据格式变化）",
+    "HTTPError": "akshare 数据源返回 HTTP 错误（4xx/5xx）",
+}
+
+
+def _classify_exception(exc: BaseException) -> tuple[str, str]:
+    """Return (human-readable reason, exception class name)."""
+    exc_name = type(exc).__name__
+    for cls in type(exc).__mro__:
+        mapped = _EXCEPTION_HINTS.get(cls.__name__)
+        if mapped:
+            return mapped, exc_name
+    return f"akshare 调用失败（{exc_name}）", exc_name
 
 
 # ── File paths ─────────────────────────────────────────────────────────────────
@@ -86,7 +117,14 @@ def _collect_holdings(fund: dict) -> dict:
             elapsed_sec=elapsed,
             message=str(e),
         )
-        return {"status": "error", "error": str(e), "elapsed_sec": elapsed}
+        reason, exc_type = _classify_exception(e)
+        return {
+            "status": "error",
+            "error": str(e),
+            "exception_type": exc_type,
+            "reason": reason,
+            "elapsed_sec": elapsed,
+        }
 
 
 def _collect_index_valuation() -> dict:
@@ -121,7 +159,14 @@ def _collect_index_valuation() -> dict:
             elapsed_sec=elapsed,
             message=str(e),
         )
-        return {"status": "error", "error": str(e), "elapsed_sec": elapsed}
+        reason, exc_type = _classify_exception(e)
+        return {
+            "status": "error",
+            "error": str(e),
+            "exception_type": exc_type,
+            "reason": reason,
+            "elapsed_sec": elapsed,
+        }
 
 
 # ── Main run ────────────────────────────────────────────────────────────────────
@@ -181,8 +226,12 @@ def main() -> None:
         sys.exit(1)
 
     if not is_quarterly_run_day():
-        print(f"Today ({today()}) is not a quarterly run day (15th of Mar/Jun/Sep/Dec).")
-        sys.exit(0)
+        print(
+            f"[info] Today ({today()}) is not a quarterly run day "
+            "(15th of Mar/Jun/Sep/Dec). Collector will still run — "
+            "akshare calls may return empty/degraded on off-cycle days; "
+            "see per-task status + reason."
+        )
 
     print(f"Running quarterly collection for {today()}...")
     result = run_quarterly()

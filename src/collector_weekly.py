@@ -44,6 +44,41 @@ def _record_error(errors: list[str], name: str, detail: str, suggestion: str) ->
     )
 
 
+# ── Exception classification (Q27, 2026-08-23) ────────────────────────────
+
+# Map of exception class name → human-readable reason hint for the caller.
+# The collector surfaces this as `status=error, reason=..., exception_type=...`
+# in the per-task result dict, so the caller (皮皮 agent) can decide whether to
+# use cache, mark the report degraded, or skip the section.
+_EXCEPTION_HINTS: dict[str, str] = {
+    "ChunkedEncodingError": (
+        "akshare 数据源连接中断/返回不完整（常见于周末/节假日源站未更新或返回空 payload）"
+    ),
+    "ConnectionError": "akshare 数据源连接失败（网络或源站不可达）",
+    "Timeout": "akshare 数据源调用超时（可考虑重试或查缓存）",
+    "KeyError": "akshare 返回结构变更，字段缺失（需升级 akshare 版本）",
+    "ValueError": "akshare 返回数据无法解析（参数不匹配或源数据格式变化）",
+    "HTTPError": "akshare 数据源返回 HTTP 错误（4xx/5xx）",
+}
+
+
+def _classify_exception(exc: BaseException) -> tuple[str, str]:
+    """Return (human-readable reason, exception class name) for an akshare failure.
+
+    Falls back to (generic message, class name) for unmapped exceptions. The
+    pair is added to the per-task status dict so the caller can decide a
+    follow-up (use cache / mark degraded / retry later).
+    """
+    exc_name = type(exc).__name__
+    # Walk the MRO so subclass exceptions (e.g. ReadTimeout ⊂ Timeout) still
+    # resolve to a sensible hint via their nearest ancestor in our map.
+    for cls in type(exc).__mro__:
+        mapped = _EXCEPTION_HINTS.get(cls.__name__)
+        if mapped:
+            return mapped, exc_name
+    return f"akshare 调用失败（{exc_name}）", exc_name
+
+
 # ── Clock stub ─────────────────────────────────────────────────────────────────
 
 def today() -> datetime.date:
@@ -211,8 +246,15 @@ def _collect_csv(
         return {"status": "success", "rows": len(df), "elapsed_sec": elapsed}
     except Exception as e:
         elapsed = time.time() - start
+        reason, exc_type = _classify_exception(e)
         _record_error(errors, name, str(e), suggestion)
-        return {"status": "error", "error": str(e), "elapsed_sec": elapsed}
+        return {
+            "status": "error",
+            "error": str(e),
+            "exception_type": exc_type,
+            "reason": reason,
+            "elapsed_sec": elapsed,
+        }
 
 
 # ── Core collector ──────────────────────────────────────────────────────────────
@@ -308,8 +350,11 @@ def main() -> None:
         sys.exit(1)
 
     if today().weekday() != 0:
-        print(f"Today ({today()}) is not Monday — weekly collector should run on Mondays only.")
-        sys.exit(0)
+        print(
+            f"[info] Today ({today()}) is not Monday. Collector will still run — "
+            "weekly akshare data may return empty/degraded on off-cycle days; "
+            "see per-task status + reason."
+        )
 
     print("Running weekly collector...")
     result = run_weekly()
