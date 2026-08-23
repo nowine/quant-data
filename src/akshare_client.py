@@ -74,9 +74,11 @@ def _with_cache(cache_key: str, ttl_hours: int, fetch_fn: callable) -> pd.DataFr
     Returns:
         DataFrame with the requested data.
     """
-    from src.config import DATA_DIR
-
-    cache_dir = os.path.join(DATA_DIR, "cache")
+    # Read DATA_DIR via attribute access (not `from ... import DATA_DIR`) so
+    # any future re-resolution (env override, init_config, reload) takes effect.
+    # Same pattern used by collector_daily/weekly/monthly/quarterly.
+    import src.config as _config
+    cache_dir = os.path.join(_config.DATA_DIR, "cache")
     cache_file = os.path.join(cache_dir, f"{cache_key}.csv")
 
     # ── Cache hit? ───────────────────────────────────────────────────────────

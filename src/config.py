@@ -161,7 +161,23 @@ SECTOR_MAPPING = {
 # =============================================================================
 # Data Storage
 # =============================================================================
-DATA_DIR = "/root/secureshare/files/ETF轮动分析框架/data"
+# DATA_DIR is the base directory for all CSV/JSON collector outputs.
+#
+# Resolution order (evaluated at module import time):
+#   1. Environment variable QUANT_DATA_DIR, if set and non-empty.
+#   2. Hard-coded default (host absolute path).
+#
+# Why env-override matters: the production collector runs inside a podman
+# container (commit 848b7f5). Rootless podman isolates the host's `/root`
+# from the container's mount namespace, so the host absolute path below is
+# NOT visible inside the container. docker-compose.yml binds the host data
+# dir to `/data` and sets `QUANT_DATA_DIR=/data/data`, so the collector
+# resolves to the container-visible path when run inside podman.
+#
+# Dev/test paths and direct host execution still use the host default
+# (no env set → legacy behavior preserved).
+_DATA_DIR_DEFAULT = "/root/secureshare/files/ETF轮动分析框架/data"
+DATA_DIR = os.getenv("QUANT_DATA_DIR") or _DATA_DIR_DEFAULT
 
 # =============================================================================
 # API Timeout

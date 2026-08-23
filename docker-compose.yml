@@ -22,6 +22,10 @@ services:
     environment:
       - PYTHONPATH=/app
       - TZ=Asia/Shanghai
+      # Override DATA_DIR so collector writes/reads inside /data (the bind
+      # mount above). src/config.py:164 reads QUANT_DATA_DIR at module-import
+      # time; default = host absolute path (back-compat for dev runs).
+      - QUANT_DATA_DIR=/data/data
     # Default invocation (overridden per cron job). See DEPLOY.md for the 4 cron
     # prompt lines that set --script/--mode/--config.
     command: ["--script", "daily", "--mode", "close", "--config", "/data/config/etf_config.json"]
