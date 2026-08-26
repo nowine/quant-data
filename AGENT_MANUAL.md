@@ -35,7 +35,7 @@ export PYTHONPATH=.
 | 命令 | 用途 | 典型运行时间 |
 |------|------|-------------|
 | `python src/collector_daily.py --mode=close` | 收盘采集：ETF快照/融资融券/北向/ETF净值/指数估值 | 交易日 15:30 |
-| `python src/collector_daily.py --mode=morning` | 盘前采集：黄金宏观/指数估值 | 每日 08:00 |
+| `python src/collector_daily.py --mode=morning` | 盘前采集：黄金宏观/指数估值/**全监控标的溢价+技术指标** | 每日 08:00 |
 | `python src/collector_weekly.py` | 周度采集：ETF规模/北向周计/行业配置 | 每周日 20:00 |
 | `python src/collector_monthly.py` | 月度采集：PMI/CPI/PPI/M2/LPR/GDP/工业增加值 | 每月1日 02:00 |
 | `python src/collector_quarterly.py` | 季度采集：基金持仓/指数估值/行业配置 | 每季1日 03:00 |
@@ -337,8 +337,22 @@ result = run_close_mode(date)
 | `index_valuation` | 空数据 / 异常 | check ttfund index valuation or use LLM |
 
 #### `run_morning_mode()` — 盘前采集
+
+> **2026-08-26 重要变更**：morning 模式现在遍历 `user_holdings ∪ etf_watch_list`（去重并集），
+> 为**每个被监控标的**生成 `premium_<code>_<date>.csv` 和 `tech_indicator_<code>_<date>.csv`。
+> 之前只走 `user_holdings`（5 只持仓），现在覆盖全监控列表（默认 22 只，生产环境 27 只）。
+> 报告侧（皮皮）按 `code ∈ user_holdings ? 持仓 : 观察` 分章节。
+
 ```python
 result = run_morning_mode(date)
+# result 包含以下任务 key：
+# - "gold_macro": 黄金 + 宏观指标
+# - "index_valuation_<idx>": 29 个指数的估值分位
+# - "premium_<code>": 27 个被监控标的的溢价率（user_holdings ∪ etf_watch_list 去重）
+# - "tech_indicator_<code>": 27 个被监控标的的技术指标
+# - "extra_premium_<code>": --extra-holdings 额外标的的溢价率（独立错误流 errors_extra）
+# - "extra_tech_<code>": --extra-holdings 额外标的的技术指标
+
 # result["errors"] 示例：
 [
     "gold_macro: TTFUND API returned empty data; suggestion: check ttfund gold/macro interface or use LLM",

@@ -368,6 +368,40 @@ def _run_premium_rate_for_user_holdings() -> pd.DataFrame:
     return _run_premium_rate_for_holdings(config.USER_HOLDINGS)
 
 
+def _all_monitored_holdings() -> list[dict]:
+    """Return deduped union of USER_HOLDINGS + ETF_WATCH_LIST.
+
+    Morning mode collects premium rate + tech indicators for every code an
+    investor is tracking. Holdings get a dedicated report section; watch-list
+    codes get another section — but the underlying data (snapshot price, NAV,
+    OHLCV) is identical, so the collector treats them as one monitoring set.
+
+    USER_HOLDINGS entries carry {code, name, sector}; ETF_WATCH_LIST entries
+    carry {code, name, index}. When the same code appears in both lists, the
+    USER_HOLDINGS entry wins (sector is more informative than index). Watch-only
+    entries pass through with sector=None, which downstream functions handle
+    via dict.get("sector").
+
+    Order: USER_HOLDINGS first (matches historical CSV naming and report
+    grouping), then watch-only codes in config order.
+    """
+    seen: set[str] = set()
+    merged: list[dict] = []
+    for holding in config.USER_HOLDINGS:
+        code = holding["code"]
+        if code in seen:
+            continue
+        seen.add(code)
+        merged.append(holding)
+    for watch in config.ETF_WATCH_LIST:
+        code = watch["code"]
+        if code in seen:
+            continue
+        seen.add(code)
+        merged.append(watch)
+    return merged
+
+
 # ── Extra-holdings wiring (ADR-003) ───────────────────────────────────────────
 
 
@@ -689,35 +723,86 @@ def run_morning_mode(extra: str | None = None) -> dict[str, dict]:
 
     results["index_valuation"] = val_results
 
-    # 3. 用户持仓 ETF 溢价折价率
+    # 3. 被监控 ETF 溢价折价率（持仓 + 观察 两个列表都需要）
     # 注意：依赖昨日 close 模式采集的 ETF 快照数据
     # 如果快照缺失会正常报错并跳过（log_collect 已处理）
-    for holding in config.USER_HOLDINGS:
+    monitored = _all_monitored_holdings()
+
+    # 一次性计算全量 premium（snapshot 加载 + NAV 拉取 1 次/code），
+    # 再按 code 拆出单行 df 落到各自 premium_<code>.csv
+    # memoized via closure so _collect_csv can call repeatedly without recompute.
+    _premium_cache: dict[str, pd.DataFrame | None] = {"value": None}
+
+    def _fetch_all_premium_once() -> pd.DataFrame:
+        if _premium_cache["value"] is None:
+            try:
+                _premium_cache["value"] = _run_premium_rate_for_holdings(monitored)
+            except Exception as e:
+                logger_module.log_collect(
+                    task="premium_rate",
+                    source="sector_rank",
+                    status="error",
+                    rows=0,
+                    elapsed_sec=0,
+                    message=f"premium batch failed: {e}",
+                )
+                _premium_cache["value"] = pd.DataFrame()
+        return _premium_cache["value"]
+
+    for holding in monitored:
         code = holding["code"]
         path = _premium_path(code)
 
-        def fetch_premium(c=code):
-            return _run_premium_rate_for_user_holdings()
+        def fetch_premium_for_code(target=code):
+            full = _fetch_all_premium_once()
+            if full is None or full.empty:
+                return full
+            row = full[full["code"] == target]
+            return row.reset_index(drop=True)
 
         results[f"premium_{code}"] = _collect_csv(
             f"premium_{code}",
-            fetch_premium,
+            fetch_premium_for_code,
             path,
             errors,
             suggestion=f"premium for {code} requires yesterday's snapshot; run close mode first",
         )
 
     # 4. 技术指标 — 基于 akshare get_etf_history OHLCV 计算 MA/RSI/ATR/Bollinger/MACD/量比
-    for holding in config.USER_HOLDINGS:
+    #    同样覆盖持仓 + 观察（报告侧按两个章节分组）
+    #    memoized closure: 一次计算全量 22 码，按 code 拆分 csv
+    _tech_cache: dict[str, pd.DataFrame | None] = {"value": None}
+
+    def _fetch_all_tech_once() -> pd.DataFrame:
+        if _tech_cache["value"] is None:
+            try:
+                _tech_cache["value"] = _run_tech_indicators_for_holdings(monitored)
+            except Exception as e:
+                logger_module.log_collect(
+                    task="tech_indicators",
+                    source="etf_history",
+                    status="error",
+                    rows=0,
+                    elapsed_sec=0,
+                    message=f"tech batch failed: {e}",
+                )
+                _tech_cache["value"] = pd.DataFrame()
+        return _tech_cache["value"]
+
+    for holding in monitored:
         code = holding["code"]
         path = _tech_indicator_path(code)
 
-        def fetch_tech(c=code):
-            return _run_tech_indicators_for_user_holdings()
+        def fetch_tech_for_code(target=code):
+            full = _fetch_all_tech_once()
+            if full is None or full.empty:
+                return full
+            row = full[full["code"] == target]
+            return row.reset_index(drop=True)
 
         results[f"tech_indicator_{code}"] = _collect_csv(
             f"tech_indicator_{code}",
-            fetch_tech,
+            fetch_tech_for_code,
             path,
             errors,
             suggestion=f"check akshare etf_history for {code} or use LLM",

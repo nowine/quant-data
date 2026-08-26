@@ -277,6 +277,9 @@ def test_morning_mode_output_structure(monkeypatch, tmp_path):
 
     from src import collector_daily
     importlib.reload(collector_daily)
+    # get_etf_history must be mocked — morning mode now iterates ALL monitored
+    # codes (USER_HOLDINGS � ETF_WATCH_LIST). Empty df → short-circuit.
+    monkeypatch.setattr(collector_daily, "get_etf_history", lambda code: pd.DataFrame())
     monkeypatch.setattr(collector_daily, "today", lambda: datetime.date(2026, 5, 20))
 
     result = collector_daily.run_morning_mode()

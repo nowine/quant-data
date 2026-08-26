@@ -50,15 +50,18 @@ cp projects/quant-data/examples/etf_config.example.json \
 
 ## 4. 持仓 vs 观察标的：怎么放？
 
-**关键认知**：
-- **`user_holdings`** = 我现在持有 → 触发溢价率/技术指标/组合分析（每个交易日跑）
-- **`etf_watch_list`** = 我想看行情 → 触发 ETF 快照/历史价格（采集全市场数据）
-- **观察但还没买的标**（如 159611/510230/159168/513980）→ 放 `etf_watch_list`，**不放** `user_holdings`
+**关键认知**（2026-08-26 更新：两个列表走同一采集路径，仅报告侧分组不同）：
+- **`user_holdings`** = 我现在持有 → 走溢价率 + 技术指标 + 组合分析
+- **`etf_watch_list`** = 我想看行情 → 走 ETF 快照/历史价格
+- **两列表都需要的 premium + tech_indicator**：morning 模式遍历 `user_holdings ∪ etf_watch_list`（去重并集），
+  为每个 code 生成独立的 `premium_<code>_<date>.csv` 和 `tech_indicator_<code>_<date>.csv`。
+- **报告侧分组**（皮皮负责）：用 `code ∈ user_holdings ? 持仓 : 观察` 判断章节。
+- **观察但还没买的标**（如 159611/510230/159168/513980）→ 放 `etf_watch_list`，**不需要**重复放入 `user_holdings`
 
 **允许重叠**（如 159530 同时在两个列表）。**重叠是有意的**，不是 bug：
-- `etf_watch_list` 里的 159530 → 走 ETF 快照采集
-- `user_holdings` 里的 159530 → 走溢价率 + 技术指标计算
-- 两个计算路径独立，互不冲突
+- `etf_watch_list` 里的 159530 → 走 ETF 快照采集 + 溢价率 + 技术指标
+- `user_holdings` 里的 159530 → 重复走溢价率 + 技术指标（去重后只跑一次）
+- 两个计算路径独立，CSV 文件名相同（按 code 去重）
 
 ---
 

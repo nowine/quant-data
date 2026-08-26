@@ -155,6 +155,10 @@ class TestRunCloseModeWithExtra:
 
 class TestRunMorningModeWithExtra:
     def test_default_run_unchanged_when_no_extra_flag(self, monkeypatch):
+        # Morning mode pre-computes premium + tech DataFrames before _collect_csv.
+        # Mock both to avoid network calls / hangs in the new 22-code path.
+        monkeypatch.setattr(cd, "_run_premium_rate_for_holdings", lambda holders: pd.DataFrame())
+        monkeypatch.setattr(cd, "_run_tech_indicators_for_holdings", lambda holders: pd.DataFrame())
         monkeypatch.setattr(cd, "_collect_csv", lambda *a, **kw: {"status": "success"})
         monkeypatch.setattr(cd, "_collect_json", lambda *a, **kw: {"status": "success"})
 
@@ -167,6 +171,8 @@ class TestRunMorningModeWithExtra:
 
     def test_extra_holdings_triggers_premium_and_tech(self, monkeypatch):
         """morning mode + extra → premium + tech for extra codes (per ADR Q8=A)."""
+        monkeypatch.setattr(cd, "_run_premium_rate_for_holdings", lambda holders: pd.DataFrame())
+        monkeypatch.setattr(cd, "_run_tech_indicators_for_holdings", lambda holders: pd.DataFrame())
         monkeypatch.setattr(cd, "_collect_csv", lambda *a, **kw: {"status": "success"})
         monkeypatch.setattr(cd, "_collect_json", lambda *a, **kw: {"status": "success"})
 
@@ -192,6 +198,9 @@ class TestRunMorningModeWithExtra:
 
     def test_extra_holdings_failure_lands_in_errors_extra(self, monkeypatch):
         """Failures during extra collection go to errors_extra, NOT errors."""
+        monkeypatch.setattr(cd, "_run_premium_rate_for_holdings", lambda holders: pd.DataFrame())
+        monkeypatch.setattr(cd, "_run_tech_indicators_for_holdings", lambda holders: pd.DataFrame())
+
         def collect_with_fail(name, fn, path, errors, **kw):
             if name.startswith("extra_"):
                 errors.append(f"FAILED: {name}")  # simulate _collect error path

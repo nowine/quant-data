@@ -319,6 +319,9 @@ class TestRunMorningModeErrors:
         importlib.reload(af_module)
 
         cd = _reload(monkeypatch, tmp_path, extra_modules=[af_module])
+        # Morning mode now iterates ALL monitored codes (USER_HOLDINGS � ETF_WATCH_LIST)
+        # for tech_indicators. Mock get_etf_history to short-circuit early.
+        monkeypatch.setattr(cd, "get_etf_history", lambda code: pd.DataFrame())
         monkeypatch.setattr(cd, "today", lambda: datetime.date(2026, 5, 20))
         af_module.get_gold_info = lambda scope: {"data": {}}
         af_module.get_index_info = lambda idx, scope: {"data": {}}
@@ -336,6 +339,8 @@ class TestRunMorningModeErrors:
         importlib.reload(af_module)
 
         cd = _reload(monkeypatch, tmp_path, extra_modules=[af_module])
+        # Mock get_etf_history so tech_indicators doesn't crash the run.
+        monkeypatch.setattr(cd, "get_etf_history", lambda code: pd.DataFrame())
         monkeypatch.setattr(cd, "today", lambda: datetime.date(2026, 5, 20))
         # Empty data → degraded
         af_module.get_gold_info = lambda scope: None

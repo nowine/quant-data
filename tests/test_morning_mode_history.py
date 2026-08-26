@@ -236,3 +236,204 @@ class TestSectorAggregationWithoutVolumeCol:
             f"avg_change_pct missing from {list(sector_df.columns)}"
         assert "rank" in sector_df.columns, \
             f"rank missing from {list(sector_df.columns)}"
+
+
+# ── TDD: morning mode must iterate ETF_WATCH_LIST too ────────────────────────
+#
+# 设计变更（2026-08-26 主人决定）:
+#   USER_HOLDINGS 和 ETF_WATCH_LIST 需要的数据是一样的
+#   （premium rate + tech indicator），报告侧按"持仓 vs 观察"分章节。
+#   之前 morning mode 只跑 USER_HOLDINGS（5 只）→ 22 只纯 watch 没有 csv，
+#   报告看不到观察标的的技术指标。
+#
+# 测试 seams:
+#   - run_morning_mode() 返回的 result 必须包含 USER_HOLDINGS � ETF_WATCH_LIST
+#     中每个 code 的 premium_<code> 和 tech_indicator_<code> key
+#   - 不重复遍历（去重）— holdings ∩ watch 共用一份
+
+class TestMorningModeCoversWatchList:
+    """Morning mode must iterate USER_HOLDINGS + ETF_WATCH_LIST (deduped)."""
+
+    def test_morning_mode_result_keys_cover_all_monitored_codes(self, monkeypatch, tmp_path):
+        """result 必须有每个被监控标的的 premium_<code> 和 tech_indicator_<code> key。"""
+        import importlib
+
+        import akshare as ak
+        from src import config, logger as logger_module
+
+        # THS mock 覆盖所有 code（morning mode 不直接用，但 reload 安全网）
+        all_codes = sorted(
+            set(h["code"] for h in config.USER_HOLDINGS)
+            | set(e["code"] for e in config.ETF_WATCH_LIST)
+        )
+        ths_mock = pd.DataFrame({
+            "序号": list(range(1, len(all_codes) + 1)),
+            "基金代码": all_codes,
+            "基金名称": [f"ETF{c}" for c in all_codes],
+            "当前-单位净值": [3.8] * len(all_codes),
+            "当前-累计净值": [3.8] * len(all_codes),
+            "前一日-单位净值": [3.7] * len(all_codes),
+            "前一日-累计净值": [3.7] * len(all_codes),
+            "增长值": [0.1] * len(all_codes),
+            "增长率": [2.7] * len(all_codes),
+            "赎回状态": ["开放"] * len(all_codes),
+            "申购状态": ["开放"] * len(all_codes),
+            "最新-交易日": ["2026-05-20"] * len(all_codes),
+            "最新-单位净值": [3.8] * len(all_codes),
+            "最新-累计净值": [3.8] * len(all_codes),
+            "基金类型": ["股票型"] * len(all_codes),
+            "查询日期": ["2026-05-20"] * len(all_codes),
+        })
+        ak.fund_etf_category_ths = lambda: ths_mock
+
+        importlib.reload(config)
+        monkeypatch.setattr(config, "DATA_DIR", str(tmp_path))
+        importlib.reload(logger_module)
+
+        from src import akshare_client as ak_module, akshare_fund_client as af_module
+        importlib.reload(ak_module)
+        importlib.reload(af_module)
+
+        # get_etf_history 返回有效 OHLCV（避免 _run_tech_indicators_for_holdings 跳过）
+        ohlcv_data = {
+            "date": pd.date_range("2026-03-01", periods=60, freq="D").strftime("%Y-%m-%d").tolist(),
+            "open": [3.8] * 60,
+            "high": [4.0] * 60,
+            "low": [3.6] * 60,
+            "close": [3.8] * 60,
+            "volume": [1_000_000] * 60,
+            "amount": [3_800_000] * 60,
+        }
+        ak_module.get_etf_history = lambda code: pd.DataFrame(ohlcv_data)
+        af_module.get_gold_info = lambda scope: {"data": {}}
+        af_module.get_index_info = lambda idx, scope: {"data": {}}
+
+        cd = _reload(monkeypatch, tmp_path, extra_modules=[ak_module, af_module])
+        cd.get_etf_history = lambda code: pd.DataFrame(ohlcv_data)
+        monkeypatch.setattr(cd, "today", lambda: datetime.date(2026, 5, 20))
+
+        result = cd.run_morning_mode()
+
+        # 被监控标的 = USER_HOLDINGS ∪ ETF_WATCH_LIST（去重）
+        monitored = sorted(
+            set(h["code"] for h in config.USER_HOLDINGS)
+            | set(e["code"] for e in config.ETF_WATCH_LIST)
+        )
+
+        missing_premium = [c for c in monitored if f"premium_{c}" not in result]
+        missing_tech = [c for c in monitored if f"tech_indicator_{c}" not in result]
+
+        assert missing_premium == [], (
+            f"morning mode missed premium_<code> for: {missing_premium}"
+        )
+        assert missing_tech == [], (
+            f"morning mode missed tech_indicator_<code> for: {missing_tech}"
+        )
+
+    def test_morning_mode_includes_watch_only_codes(self, monkeypatch, tmp_path):
+        """纯 watch 标的（如 159611）必须出现在 result 中。"""
+        import importlib
+
+        from src import config, logger as logger_module
+
+        watch_only = sorted(
+            set(e["code"] for e in config.ETF_WATCH_LIST)
+            - set(h["code"] for h in config.USER_HOLDINGS)
+        )
+        assert watch_only, "测试前提:必须存在纯 watch 标的（不在 holdings）"
+
+        importlib.reload(config)
+        monkeypatch.setattr(config, "DATA_DIR", str(tmp_path))
+        importlib.reload(logger_module)
+
+        from src import akshare_client as ak_module, akshare_fund_client as af_module
+        importlib.reload(ak_module)
+        importlib.reload(af_module)
+
+        ohlcv_data = pd.DataFrame({
+            "date": pd.date_range("2026-03-01", periods=60, freq="D").strftime("%Y-%m-%d").tolist(),
+            "open": [3.8] * 60, "high": [4.0] * 60, "low": [3.6] * 60,
+            "close": [3.8] * 60, "volume": [1_000_000] * 60, "amount": [3_800_000] * 60,
+        })
+        ak_module.get_etf_history = lambda code: pd.DataFrame(ohlcv_data)
+        af_module.get_gold_info = lambda scope: {"data": {}}
+        af_module.get_index_info = lambda idx, scope: {"data": {}}
+
+        cd = _reload(monkeypatch, tmp_path, extra_modules=[ak_module, af_module])
+        cd.get_etf_history = lambda code: pd.DataFrame(ohlcv_data)
+        monkeypatch.setattr(cd, "today", lambda: datetime.date(2026, 5, 20))
+
+        result = cd.run_morning_mode()
+
+        # 至少 1 个纯 watch 标的要有 premium 和 tech_indicator 结果 key
+        for c in watch_only:
+            assert f"premium_{c}" in result, (
+                f"纯 watch 标的 {c} 缺少 premium_{c}; result keys 含 {sorted(result.keys())[:5]}..."
+            )
+            assert f"tech_indicator_{c}" in result, (
+                f"纯 watch 标的 {c} 缺少 tech_indicator_{c}"
+            )
+
+    def test_morning_mode_calls_tech_for_all_monitored_codes(self, monkeypatch, tmp_path):
+        """底层 _run_tech_indicators_for_holdings 必须收到完整的（去重）监控列表。"""
+        import importlib
+
+        from src import config, logger as logger_module
+
+        importlib.reload(config)
+        monkeypatch.setattr(config, "DATA_DIR", str(tmp_path))
+        importlib.reload(logger_module)
+
+        from src import akshare_client as ak_module, akshare_fund_client as af_module
+        importlib.reload(ak_module)
+        importlib.reload(af_module)
+
+        ohlcv_data = pd.DataFrame({
+            "date": pd.date_range("2026-03-01", periods=60, freq="D").strftime("%Y-%m-%d").tolist(),
+            "open": [3.8] * 60, "high": [4.0] * 60, "low": [3.6] * 60,
+            "close": [3.8] * 60, "volume": [1_000_000] * 60, "amount": [3_800_000] * 60,
+        })
+        ak_module.get_etf_history = lambda code: pd.DataFrame(ohlcv_data)
+        af_module.get_gold_info = lambda scope: {"data": {}}
+        af_module.get_index_info = lambda idx, scope: {"data": {}}
+
+        cd = _reload(monkeypatch, tmp_path, extra_modules=[ak_module, af_module])
+        cd.get_etf_history = lambda code: pd.DataFrame(ohlcv_data)
+        monkeypatch.setattr(cd, "today", lambda: datetime.date(2026, 5, 20))
+
+        # 拦截底层 fetch 函数，记录传入的 holders 列表
+        tech_calls = []
+        premium_calls = []
+
+        original_tech = cd._run_tech_indicators_for_holdings
+        original_premium = cd._run_premium_rate_for_holdings
+
+        def spy_tech(holders):
+            tech_calls.append([h["code"] for h in holders])
+            return original_tech(holders)
+
+        def spy_premium(holders):
+            premium_calls.append([h["code"] for h in holders])
+            return original_premium(holders)
+
+        monkeypatch.setattr(cd, "_run_tech_indicators_for_holdings", spy_tech)
+        monkeypatch.setattr(cd, "_run_premium_rate_for_holdings", spy_premium)
+
+        cd.run_morning_mode()
+
+        # 监控标的 = 去重并集
+        expected = sorted(
+            set(h["code"] for h in config.USER_HOLDINGS)
+            | set(e["code"] for e in config.ETF_WATCH_LIST)
+        )
+
+        # tech 至少一次调用传入完整列表（顺序：USER_HOLDINGS 先，WATCH 后）
+        expected_set = set(expected)
+        assert any(set(call) == expected_set for call in tech_calls), (
+            f"Expected _run_tech_indicators_for_holdings called with {expected} (set), "
+            f"got distinct call sets={[set(c) for c in tech_calls]}"
+        )
+        assert any(set(call) == expected_set for call in premium_calls), (
+            f"Expected _run_premium_rate_for_holdings called with {expected} (set), "
+            f"got distinct call sets={[set(c) for c in premium_calls]}"
+        )
