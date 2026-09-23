@@ -23,12 +23,13 @@ specifically tests containerization behavior; keeping it isolated makes it
 easy to skip on hosts that don't have a `podman` runtime.
 """
 
+import pathlib
 import os
 import importlib
 import pytest
 
-
-_HOST_DEFAULT = "/root/secureshare/files/ETF轮动分析框架/data"
+# Repo-relative default: <repo>/data (no machine-specific absolute path).
+_HOST_DEFAULT = str(pathlib.Path(__file__).resolve().parent.parent / "data")
 _CONTAINER_PATH = "/data/data"
 
 
@@ -48,10 +49,11 @@ class TestDataDirEnv:
         import src.config as cfg
         importlib.reload(cfg)
 
-    def test_default_is_host_absolute_path(self):
-        """Without QUANT_DATA_DIR set, DATA_DIR = legacy host path."""
+    def test_default_is_repo_relative_path(self):
+        """Without QUANT_DATA_DIR set, DATA_DIR = <repo>/data (no /root hardcode)."""
         from src.config import DATA_DIR
         assert DATA_DIR == _HOST_DEFAULT
+        assert not DATA_DIR.startswith("/root/")
 
     def test_env_override_changes_data_dir(self):
         """QUANT_DATA_DIR env var must override the default at module import time."""

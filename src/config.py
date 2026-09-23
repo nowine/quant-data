@@ -47,6 +47,7 @@ without reading code.
 """
 
 import os
+from pathlib import Path
 
 # Load .env for cron/isolated environments where system env vars may be absent
 try:
@@ -165,18 +166,17 @@ SECTOR_MAPPING = {
 #
 # Resolution order (evaluated at module import time):
 #   1. Environment variable QUANT_DATA_DIR, if set and non-empty.
-#   2. Hard-coded default (host absolute path).
+#   2. Repo-relative default: <repo>/data (no machine-specific absolute path).
 #
-# Why env-override matters: the production collector runs inside a podman
-# container (commit 848b7f5). Rootless podman isolates the host's `/root`
-# from the container's mount namespace, so the host absolute path below is
-# NOT visible inside the container. docker-compose.yml binds the host data
-# dir to `/data` and sets `QUANT_DATA_DIR=/data/data`, so the collector
-# resolves to the container-visible path when run inside podman.
+# Why env-override matters: the production collector may run inside a podman
+# container (commit 848b7f5). docker-compose.yml binds the host data dir to
+# `/data` and sets `QUANT_DATA_DIR=/data/data`, so the collector resolves to
+# the container-visible path when run inside podman.
 #
-# Dev/test paths and direct host execution still use the host default
-# (no env set → legacy behavior preserved).
-_DATA_DIR_DEFAULT = "/root/secureshare/files/ETF轮动分析框架/data"
+# Deployment note (2026-09-23): current production uses git tag + worktree
+# (stable worktree at a fixed path, cron points there); containers remain
+# supported via QUANT_DATA_DIR. Both read the same env contract.
+_DATA_DIR_DEFAULT = str(Path(__file__).resolve().parent.parent / "data")
 DATA_DIR = os.getenv("QUANT_DATA_DIR") or _DATA_DIR_DEFAULT
 
 # =============================================================================

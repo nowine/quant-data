@@ -35,10 +35,20 @@ class TestConfigBasics:
             "TTFUND_APIKEY should be removed — ttfund_client is gone"
         )
 
-    def test_data_dir_contains_project_name(self):
-        """DATA_DIR must contain 'ETF轮动分析框架'"""
-        from src.config import DATA_DIR
-        assert "ETF轮动分析框架" in DATA_DIR
+    def test_data_dir_default_is_repo_relative(self):
+        """Default DATA_DIR (no QUANT_DATA_DIR set) must be <repo>/data."""
+        from pathlib import Path
+
+        from src import config
+
+        expected = str(Path(config.__file__).resolve().parent.parent / "data")
+        assert config.DATA_DIR == expected, (
+            "DATA_DIR default must be repo-relative <repo>/data, "
+            "not a machine-specific absolute path"
+        )
+        assert not config.DATA_DIR.startswith("/root/"), (
+            "DATA_DIR must not contain the legacy /root hardcode"
+        )
 
     def test_slow_api_timeout_default(self):
         """SLOW_API_TIMEOUT must default to 45"""
