@@ -15,6 +15,7 @@ from pathlib import Path
 from src import config
 from src import logger as logger_module
 from src.akshare_fund_client import get_holdings, get_index_info
+from src.collectors_common import classify_exception as _classify_exception
 from src.storage import save_csv, save_json
 
 # ── Clock stub ─────────────────────────────────────────────────────────────────
@@ -37,32 +38,6 @@ def is_quarterly_run_day() -> bool:
     """
     d = today()
     return d.day == 15 and d.month in (3, 6, 9, 12)
-
-
-# ── Exception classification (Q27, 2026-08-23) ────────────────────────────
-
-# See collector_weekly.py for design rationale. Identical map to keep
-# classifier output consistent across all 4 collectors.
-_EXCEPTION_HINTS: dict[str, str] = {
-    "ChunkedEncodingError": (
-        "akshare 数据源连接中断/返回不完整（常见于周末/节假日源站未更新或返回空 payload）"
-    ),
-    "ConnectionError": "akshare 数据源连接失败（网络或源站不可达）",
-    "Timeout": "akshare 数据源调用超时（可考虑重试或查缓存）",
-    "KeyError": "akshare 返回结构变更，字段缺失（需升级 akshare 版本）",
-    "ValueError": "akshare 返回数据无法解析（参数不匹配或源数据格式变化）",
-    "HTTPError": "akshare 数据源返回 HTTP 错误（4xx/5xx）",
-}
-
-
-def _classify_exception(exc: BaseException) -> tuple[str, str]:
-    """Return (human-readable reason, exception class name)."""
-    exc_name = type(exc).__name__
-    for cls in type(exc).__mro__:
-        mapped = _EXCEPTION_HINTS.get(cls.__name__)
-        if mapped:
-            return mapped, exc_name
-    return f"akshare 调用失败（{exc_name}）", exc_name
 
 
 # ── File paths ─────────────────────────────────────────────────────────────────

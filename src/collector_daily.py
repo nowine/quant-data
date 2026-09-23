@@ -23,6 +23,8 @@ from src.akshare_client import (
     get_us_stock_index,
 )
 from src.akshare_fund_client import get_gold_info, get_index_info, get_nav_history
+from src.collectors_common import classify_exception as _classify_exception
+from src.collectors_common import record_error as _record_error
 from src.extra_holdings import (
     build_extra_holdings_set,
     parse_extra_holdings_arg,
@@ -106,53 +108,6 @@ def _premium_path(code: str) -> Path:
 def _tech_indicator_path(code: str) -> Path:
     """Return path for ETF technical indicators output."""
     return _daily_dir() / f"tech_indicator_{code}_{today()}.csv"
-
-
-# ── Error registry ─────────────────────────────────────────────────────────────
-#
-# Structured error list passed through the call stack so the agent always
-# knows which data sources failed and what to do about it.
-# Each entry format: "{task_name}: {detail}; suggestion: {action}"
-
-
-def _record_error(errors: list[str], name: str, detail: str, suggestion: str) -> None:
-    """Append a structured error to the shared errors list and log it."""
-    msg = f"{name}: {detail}; suggestion: {suggestion}"
-    errors.append(msg)
-    logger_module.log_collect(
-        task=name,
-        source=name.split("_")[0],
-        status="error",
-        rows=0,
-        elapsed_sec=0,
-        message=msg,
-    )
-
-
-# ── Exception classification (Q27, 2026-08-23) ────────────────────────────
-
-# See collector_weekly.py for design rationale. Identical map to keep
-# classifier output consistent across all 4 collectors.
-_EXCEPTION_HINTS: dict[str, str] = {
-    "ChunkedEncodingError": (
-        "akshare 数据源连接中断/返回不完整（常见于周末/节假日源站未更新或返回空 payload）"
-    ),
-    "ConnectionError": "akshare 数据源连接失败（网络或源站不可达）",
-    "Timeout": "akshare 数据源调用超时（可考虑重试或查缓存）",
-    "KeyError": "akshare 返回结构变更，字段缺失（需升级 akshare 版本）",
-    "ValueError": "akshare 返回数据无法解析（参数不匹配或源数据格式变化）",
-    "HTTPError": "akshare 数据源返回 HTTP 错误（4xx/5xx）",
-}
-
-
-def _classify_exception(exc: BaseException) -> tuple[str, str]:
-    """Return (human-readable reason, exception class name)."""
-    exc_name = type(exc).__name__
-    for cls in type(exc).__mro__:
-        mapped = _EXCEPTION_HINTS.get(cls.__name__)
-        if mapped:
-            return mapped, exc_name
-    return f"akshare 调用失败（{exc_name}）", exc_name
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
