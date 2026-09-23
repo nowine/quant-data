@@ -1,4 +1,5 @@
 import os
+
 import pandas as pd
 
 
@@ -9,7 +10,7 @@ def test_exists_today_false_when_missing(tmp_path):
 
 
 def test_exists_today_true_when_file_exists(tmp_path):
-    from src.storage import save_csv, exists_today
+    from src.storage import exists_today, save_csv
 
     df = pd.DataFrame({"date": ["2026-05-20"], "value": [1]})
     save_csv(df, str(tmp_path / "test.csv"))
@@ -26,13 +27,15 @@ def test_exists_today_false_when_empty_file(tmp_path):
 
 def test_collect_if_missing_cache_hit(tmp_path, monkeypatch):
     import importlib
-    from src import config, logger as logger_module
+
+    from src import config
+    from src import logger as logger_module
 
     importlib.reload(config)
     monkeypatch.setattr(config, "DATA_DIR", str(tmp_path))
     importlib.reload(logger_module)
 
-    from src.storage import save_csv, collect_if_missing
+    from src.storage import collect_if_missing, save_csv
 
     df = pd.DataFrame({"date": ["2026-05-20"], "value": [1]})
     save_csv(df, str(tmp_path / "test.csv"))
@@ -51,7 +54,9 @@ def test_collect_if_missing_cache_hit(tmp_path, monkeypatch):
 
 def test_collect_if_missing_fetch_and_save(tmp_path, monkeypatch):
     import importlib
-    from src import config, logger as logger_module
+
+    from src import config
+    from src import logger as logger_module
 
     importlib.reload(config)
     monkeypatch.setattr(config, "DATA_DIR", str(tmp_path))

@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import os
 import subprocess
-import sys
 from pathlib import Path
 
 import pytest
@@ -49,6 +48,7 @@ def _run(args, *, expect_exit: int = 0, timeout: int = 60) -> subprocess.Complet
 
 # ── Required --script ─────────────────────────────────────────────────────────
 
+
 class TestScriptRequired:
     def test_missing_script_exits_nonzero(self):
         result = _run(["--config", str(EXAMPLE_CONFIG)], expect_exit=2)
@@ -63,25 +63,26 @@ class TestScriptRequired:
 
 # ── Routing ───────────────────────────────────────────────────────────────────
 
+
 class TestRouting:
     def test_daily_routes_with_mode_morning(self):
         """--script daily --mode morning dispatches to collector_daily."""
         result = _run(
-            ["--script", "daily", "--mode", "morning",
-             "--config", str(EXAMPLE_CONFIG)],
+            ["--script", "daily", "--mode", "morning", "--config", str(EXAMPLE_CONFIG)],
             timeout=120,
         )
         # morning mode runs all collectors and exits 0 even on partial failures
         # (P2 stubs are expected). Just verify it routed correctly.
-        assert "akshare_fund_client.get_index_info" in result.stdout or \
-               "is_trading_day" in result.stdout or \
-               result.returncode == 0
+        assert (
+            "akshare_fund_client.get_index_info" in result.stdout
+            or "is_trading_day" in result.stdout
+            or result.returncode == 0
+        )
 
     def test_daily_routes_with_mode_close(self):
         """--script daily --mode close dispatches to collector_daily."""
         result = _run(
-            ["--script", "daily", "--mode", "close",
-             "--config", str(EXAMPLE_CONFIG)],
+            ["--script", "daily", "--mode", "close", "--config", str(EXAMPLE_CONFIG)],
             timeout=120,
         )
         assert result.returncode == 0
@@ -115,13 +116,21 @@ class TestRouting:
 
 # ── Arg forwarding ────────────────────────────────────────────────────────────
 
+
 class TestArgForwarding:
     def test_extra_holdings_forwarded(self, tmp_path):
         """--extra-holdings JSON must pass through to collector_daily."""
         result = _run(
-            ["--script", "daily", "--mode", "morning",
-             "--config", str(EXAMPLE_CONFIG),
-             "--extra-holdings", '[{"code": "512480"}]'],
+            [
+                "--script",
+                "daily",
+                "--mode",
+                "morning",
+                "--config",
+                str(EXAMPLE_CONFIG),
+                "--extra-holdings",
+                '[{"code": "512480"}]',
+            ],
             timeout=120,
         )
         # Just confirm it didn't crash on the forwarded arg.

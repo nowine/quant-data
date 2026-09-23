@@ -27,8 +27,8 @@ import pytest
 
 import src.collector_daily as cd
 
-
 # ── helpers ────────────────────────────────────────────────────────────────────
+
 
 def _akshare_enrichment(codes: list[str]) -> pd.DataFrame:
     """Mock enrichment: always returns the code with a name derived from it."""
@@ -43,6 +43,7 @@ def _akshare_enrichment(codes: list[str]) -> pd.DataFrame:
 
 # ── _resolve_extra_holdings (the helper seam) ─────────────────────────────────
 
+
 class TestResolveExtraHoldings:
     def test_empty_arg_returns_empty_list(self):
         result = cd._resolve_extra_holdings("", existing_codes={"159530"})
@@ -53,11 +54,10 @@ class TestResolveExtraHoldings:
         assert result == []
 
     def test_single_new_code(self):
-        with patch.object(cd, "build_extra_holdings_set",
-                          return_value=_akshare_enrichment(["512480"])):
-            result = cd._resolve_extra_holdings(
-                '[{"code": "512480"}]', existing_codes={"159530"}
-            )
+        with patch.object(
+            cd, "build_extra_holdings_set", return_value=_akshare_enrichment(["512480"])
+        ):
+            result = cd._resolve_extra_holdings('[{"code": "512480"}]', existing_codes={"159530"})
         assert len(result) == 1
         assert result[0]["code"] == "512480"
         assert result[0]["name"] == "MockETF-512480"
@@ -65,8 +65,9 @@ class TestResolveExtraHoldings:
 
     def test_dedup_against_existing(self):
         """Codes already in existing_codes are filtered out, with a warn log."""
-        with patch.object(cd, "build_extra_holdings_set",
-                          return_value=_akshare_enrichment(["159530", "512480"])):
+        with patch.object(
+            cd, "build_extra_holdings_set", return_value=_akshare_enrichment(["159530", "512480"])
+        ):
             result = cd._resolve_extra_holdings(
                 '[{"code": "159530"}, {"code": "512480"}]',
                 existing_codes={"159530", "588750"},
@@ -79,22 +80,21 @@ class TestResolveExtraHoldings:
 
     def test_akshare_failure_returns_empty_list(self):
         """If akshare fails, _resolve_extra_holdings returns [] (best-effort)."""
-        with patch.object(cd, "build_extra_holdings_set",
-                          side_effect=RuntimeError("akshare down")):
-            result = cd._resolve_extra_holdings(
-                '[{"code": "512480"}]', existing_codes=set()
-            )
+        with patch.object(cd, "build_extra_holdings_set", side_effect=RuntimeError("akshare down")):
+            result = cd._resolve_extra_holdings('[{"code": "512480"}]', existing_codes=set())
         assert result == []
 
     def test_existing_codes_defaults_to_empty(self):
         """existing_codes defaults to set() when not provided."""
-        with patch.object(cd, "build_extra_holdings_set",
-                          return_value=_akshare_enrichment(["512480"])):
+        with patch.object(
+            cd, "build_extra_holdings_set", return_value=_akshare_enrichment(["512480"])
+        ):
             result = cd._resolve_extra_holdings('[{"code": "512480"}]')
         assert len(result) == 1
 
 
 # ── CLI integration: extra-holdings flows through to run_*_mode ───────────────
+
 
 class TestRunCloseModeWithExtra:
     def test_default_run_unchanged_when_no_extra_flag(self, monkeypatch):
@@ -129,7 +129,6 @@ class TestRunCloseModeWithExtra:
         )
 
         captured_nav_paths = []
-        real_collect = cd._collect_csv
 
         def capture_collect(name, fn, path, errors, **kw):
             if name.startswith("extra_nav_"):
@@ -138,7 +137,7 @@ class TestRunCloseModeWithExtra:
 
         monkeypatch.setattr(cd, "_collect_csv", capture_collect)
 
-        result = cd.run_close_mode(extra='[{"code": "512480"}]')
+        cd.run_close_mode(extra='[{"code": "512480"}]')
 
         assert any(n == "extra_nav_512480" for n in captured_nav_paths), (
             f"close mode should run NAV for extra 512480; got {captured_nav_paths}"
@@ -177,13 +176,14 @@ class TestRunMorningModeWithExtra:
         )
 
         captured_names = []
+
         def capture(name, fn, path, errors, **kw):
             captured_names.append(name)
             return {"status": "success"}
 
         monkeypatch.setattr(cd, "_collect_csv", capture)
 
-        result = cd.run_morning_mode(extra='[{"code": "512480"}]')
+        cd.run_morning_mode(extra='[{"code": "512480"}]')
 
         assert "extra_premium_512480" in captured_names, captured_names
         assert "extra_tech_512480" in captured_names, captured_names
@@ -220,6 +220,7 @@ class TestRunMorningModeWithExtra:
 
 # ── argparse: --extra-holdings parsed and forwarded ───────────────────────────
 
+
 class TestCLIExtraHoldings:
     def test_cli_parses_extra_holdings(self, monkeypatch):
         """main() with --extra-holdings forwards raw string to run_morning_mode."""
@@ -235,9 +236,15 @@ class TestCLIExtraHoldings:
         monkeypatch.setattr("src.config.init_config", lambda path: None)
         monkeypatch.setattr(
             "sys.argv",
-            ["collector_daily.py", "--mode", "morning",
-             "--config", "/tmp/fake.json",
-             "--extra-holdings", '[{"code": "512480"}]'],
+            [
+                "collector_daily.py",
+                "--mode",
+                "morning",
+                "--config",
+                "/tmp/fake.json",
+                "--extra-holdings",
+                '[{"code": "512480"}]',
+            ],
         )
 
         cd.main()
@@ -257,8 +264,7 @@ class TestCLIExtraHoldings:
         monkeypatch.setattr("src.config.init_config", lambda path: None)
         monkeypatch.setattr(
             "sys.argv",
-            ["collector_daily.py", "--mode", "morning",
-             "--config", "/tmp/fake.json"],
+            ["collector_daily.py", "--mode", "morning", "--config", "/tmp/fake.json"],
         )
 
         cd.main()

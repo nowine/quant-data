@@ -21,8 +21,8 @@ import pytest
 
 from src.config_loader import ConfigLoadError, load_config
 
-
 # ── Happy path ────────────────────────────────────────────────────────────────
+
 
 class TestLoadConfigHappyPath:
     def test_loads_minimal_config(self, tmp_path: Path):
@@ -37,12 +37,8 @@ class TestLoadConfigHappyPath:
     def test_loads_full_config(self, tmp_path: Path):
         cfg_path = tmp_path / "etf_config.json"
         data = {
-            "etf_watch_list": [
-                {"code": "510300", "name": "沪深300ETF", "index": "沪深300"}
-            ],
-            "user_holdings": [
-                {"code": "159530", "name": "机器人ETF", "sector": "机器人"}
-            ],
+            "etf_watch_list": [{"code": "510300", "name": "沪深300ETF", "index": "沪深300"}],
+            "user_holdings": [{"code": "159530", "name": "机器人ETF", "sector": "机器人"}],
             "index_watch_list": ["沪深300"],
             "sector_mapping": {"宽基": ["510300"]},
         }
@@ -61,6 +57,7 @@ class TestLoadConfigHappyPath:
 
 
 # ── File errors (fail-fast per ADR-004 Q13-A) ───────────────────────────────
+
 
 class TestLoadConfigFileErrors:
     def test_missing_file_raises_with_clear_message(self, tmp_path: Path):
@@ -89,13 +86,14 @@ class TestLoadConfigFileErrors:
 
 # ── Schema errors (fail-fast; surface validator message) ────────────────────
 
+
 class TestLoadConfigSchemaErrors:
     def test_schema_violation_raises_with_validator_message(self, tmp_path: Path):
         """When JSON parses but fails schema, error message should mention schema."""
         bad = tmp_path / "bad_schema.json"
-        bad.write_text(json.dumps({
-            "etf_watch_list": [{"code": "12345", "name": "x", "index": "y"}]
-        }))
+        bad.write_text(
+            json.dumps({"etf_watch_list": [{"code": "12345", "name": "x", "index": "y"}]})
+        )
         with pytest.raises(ConfigLoadError, match="schema"):
             load_config(bad)
 
@@ -109,18 +107,24 @@ class TestLoadConfigSchemaErrors:
 
 # ── Returned dict shape ──────────────────────────────────────────────────────
 
+
 class TestLoadConfigReturnShape:
     def test_returned_dict_has_four_keys(self, tmp_path: Path):
         cfg = tmp_path / "cfg.json"
         cfg.write_text("{}")
         result = load_config(cfg)
         assert set(result.keys()) == {
-            "etf_watch_list", "user_holdings", "index_watch_list", "sector_mapping"
+            "etf_watch_list",
+            "user_holdings",
+            "index_watch_list",
+            "sector_mapping",
         }
 
     def test_missing_lists_default_to_empty(self, tmp_path: Path):
         cfg = tmp_path / "cfg.json"
-        cfg.write_text(json.dumps({"etf_watch_list": [{"code": "510300", "name": "x", "index": "y"}]}))
+        cfg.write_text(
+            json.dumps({"etf_watch_list": [{"code": "510300", "name": "x", "index": "y"}]})
+        )
         result = load_config(cfg)
         assert result["user_holdings"] == []
         assert result["index_watch_list"] == []
@@ -134,7 +138,9 @@ class TestLoadConfigReturnShape:
         entry would silently change the cached config.
         """
         cfg = tmp_path / "cfg.json"
-        cfg.write_text(json.dumps({"etf_watch_list": [{"code": "510300", "name": "x", "index": "y"}]}))
+        cfg.write_text(
+            json.dumps({"etf_watch_list": [{"code": "510300", "name": "x", "index": "y"}]})
+        )
         first = load_config(cfg)
         first["etf_watch_list"].clear()
         second = load_config(cfg)
@@ -142,6 +148,7 @@ class TestLoadConfigReturnShape:
 
 
 # ── Error message usability ──────────────────────────────────────────────────
+
 
 class TestLoadConfigErrorMessages:
     def test_all_errors_suggest_fixing_json(self, tmp_path: Path):
@@ -154,26 +161,39 @@ class TestLoadConfigErrorMessages:
 
 # ── Encoding (UTF-8 / Chinese names) ─────────────────────────────────────────
 
+
 class TestLoadConfigEncoding:
     def test_utf8_chinese_names_load_correctly(self, tmp_path: Path):
         cfg = tmp_path / "cfg.json"
-        cfg.write_text(json.dumps({
-            "etf_watch_list": [{"code": "159530", "name": "机器人ETF易方达", "index": "中证机器人"}]
-        }, ensure_ascii=False), encoding="utf-8")
+        cfg.write_text(
+            json.dumps(
+                {
+                    "etf_watch_list": [
+                        {"code": "159530", "name": "机器人ETF易方达", "index": "中证机器人"}
+                    ]
+                },
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
         result = load_config(cfg)
         assert result["etf_watch_list"][0]["name"] == "机器人ETF易方达"
 
 
 # ── Comment in source about duck-typing ──────────────────────────────────────
 
+
 class TestLoadConfigDedent:
     """Sanity: load_config accepts both dedented and raw JSON."""
+
     def test_dedent_input_works(self, tmp_path: Path):
         cfg = tmp_path / "cfg.json"
-        cfg.write_text(dedent("""\
+        cfg.write_text(
+            dedent("""\
             {
                 "etf_watch_list": []
             }
-        """))
+        """)
+        )
         result = load_config(cfg)
         assert result["etf_watch_list"] == []

@@ -50,7 +50,9 @@ def aggregate_by_sector(
         rise_count = int((subset[change_col] > 0).sum())
         fall_count = int((subset[change_col] < 0).sum())
         avg_change_pct = float(subset[change_col].mean())
-        total_volume = float(subset[volume_col].sum() if volume_col and volume_col in subset.columns else 0)
+        total_volume = float(
+            subset[volume_col].sum() if volume_col and volume_col in subset.columns else 0
+        )
         rows.append(
             {
                 "sector": sector,

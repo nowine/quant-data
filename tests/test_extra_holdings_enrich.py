@@ -23,17 +23,16 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pandas as pd
-import pytest
 
 from src.extra_holdings import (
     CACHE_FILENAME,
     CACHE_TTL_HOURS,
-    build_extra_holdings_set,
     _cache_path,
+    build_extra_holdings_set,
 )
 
-
 # ── helpers ────────────────────────────────────────────────────────────────────
+
 
 def _akshare_df() -> pd.DataFrame:
     """Sample fund_name_em() output (subset)."""
@@ -58,6 +57,7 @@ def _akshare_df() -> pd.DataFrame:
 
 # ── path / constants ──────────────────────────────────────────────────────────
 
+
 class TestCachePath:
     def test_cache_filename_is_stable(self):
         assert CACHE_FILENAME == "fund_name.csv"
@@ -72,6 +72,7 @@ class TestCachePath:
 
 
 # ── cache hit (no akshare call) ────────────────────────────────────────────────
+
 
 class TestCacheHit:
     def test_fresh_cache_skips_akshare(self, tmp_path, monkeypatch):
@@ -94,6 +95,7 @@ class TestCacheHit:
 
 
 # ── cache miss / stale → fetch from akshare ───────────────────────────────────
+
 
 class TestCacheMiss:
     def test_no_cache_file_fetches_and_writes(self, tmp_path, monkeypatch):
@@ -124,15 +126,15 @@ class TestCacheMiss:
         stale = _akshare_df().iloc[:1]  # only 159530
         stale.to_csv(cache_path, index=False)
         import time
+
         old_time = time.time() - (CACHE_TTL_HOURS * 3600 + 60)
         import os
+
         os.utime(cache_path, (old_time, old_time))
 
         # akshare now returns a *different* 159530 name → confirms refresh happened
         refreshed = _akshare_df()
-        refreshed.loc[
-            refreshed["基金代码"] == "159530", "基金简称"
-        ] = "机器人ETF易方达-RENAMED"
+        refreshed.loc[refreshed["基金代码"] == "159530", "基金简称"] = "机器人ETF易方达-RENAMED"
 
         with patch(
             "src.extra_holdings._fetch_fund_name_from_akshare",
@@ -144,6 +146,7 @@ class TestCacheMiss:
 
 
 # ── partial / missing codes ──────────────────────────────────────────────────
+
 
 class TestPartialMatch:
     def test_unknown_code_yields_empty_name(self, tmp_path, monkeypatch):
@@ -171,6 +174,7 @@ class TestPartialMatch:
 
 # ── akshare failure fallback ─────────────────────────────────────────────────
 
+
 class TestAkshareFailure:
     def test_akshare_exception_yields_empty_names(self, tmp_path, monkeypatch):
         """Akshare fails → all rows present, name='', akshare NOT cached."""
@@ -190,6 +194,7 @@ class TestAkshareFailure:
 
 
 # ── output shape stability ───────────────────────────────────────────────────
+
 
 class TestOutputShape:
     def test_columns_are_stable(self, tmp_path, monkeypatch):

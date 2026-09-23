@@ -23,10 +23,9 @@ specifically tests containerization behavior; keeping it isolated makes it
 easy to skip on hosts that don't have a `podman` runtime.
 """
 
-import pathlib
-import os
 import importlib
-import pytest
+import os
+import pathlib
 
 # Repo-relative default: <repo>/data (no machine-specific absolute path).
 _HOST_DEFAULT = str(pathlib.Path(__file__).resolve().parent.parent / "data")
@@ -41,17 +40,20 @@ class TestDataDirEnv:
         # Drop any cached env override so we re-read module-level constants.
         os.environ.pop("QUANT_DATA_DIR", None)
         import src.config as cfg
+
         importlib.reload(cfg)
 
     def teardown_method(self):
         """Restore env to a clean state after each test."""
         os.environ.pop("QUANT_DATA_DIR", None)
         import src.config as cfg
+
         importlib.reload(cfg)
 
     def test_default_is_repo_relative_path(self):
         """Without QUANT_DATA_DIR set, DATA_DIR = <repo>/data (no /root hardcode)."""
         from src.config import DATA_DIR
+
         assert DATA_DIR == _HOST_DEFAULT
         assert not DATA_DIR.startswith("/root/")
 
@@ -59,6 +61,7 @@ class TestDataDirEnv:
         """QUANT_DATA_DIR env var must override the default at module import time."""
         os.environ["QUANT_DATA_DIR"] = _CONTAINER_PATH
         import src.config as cfg
+
         importlib.reload(cfg)
         try:
             assert cfg.DATA_DIR == _CONTAINER_PATH
@@ -69,6 +72,7 @@ class TestDataDirEnv:
         """Empty QUANT_DATA_DIR must not silently flip to ''; use default."""
         os.environ["QUANT_DATA_DIR"] = ""
         import src.config as cfg
+
         importlib.reload(cfg)
         try:
             assert cfg.DATA_DIR == _HOST_DEFAULT
@@ -84,6 +88,7 @@ class TestDataDirEnv:
         """
         os.environ["QUANT_DATA_DIR"] = "/tmp/qd"
         import src.config as cfg
+
         importlib.reload(cfg)
         try:
             assert cfg.DATA_DIR == "/tmp/qd"

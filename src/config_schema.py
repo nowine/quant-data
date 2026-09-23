@@ -22,11 +22,11 @@ See ADR-004 (docs/adr-004-externalize-config.md) for full design rationale.
 from __future__ import annotations
 
 import re
-from typing import Any, Iterable
+from collections.abc import Iterable
+from typing import Any
 
 import jsonschema
 from jsonschema import Draft202012Validator
-
 
 # Reuse the 6-digit code pattern from extra_holdings (single source of truth).
 # We deliberately don't import from extra_holdings to keep config_schema

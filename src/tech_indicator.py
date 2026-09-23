@@ -18,8 +18,8 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-
 # ── MA / Moving Average ────────────────────────────────────────────────────────
+
 
 def calc_ma(data: pd.DataFrame, periods: list[int] | tuple[int, ...] = (20, 60)) -> pd.DataFrame:
     """Calculate moving averages for given periods.
@@ -38,7 +38,9 @@ def calc_ma(data: pd.DataFrame, periods: list[int] | tuple[int, ...] = (20, 60))
     return result
 
 
-def calc_ma_deviation(data: pd.DataFrame, periods: list[int] | tuple[int, ...] = (20, 60)) -> pd.DataFrame:
+def calc_ma_deviation(
+    data: pd.DataFrame, periods: list[int] | tuple[int, ...] = (20, 60)
+) -> pd.DataFrame:
     """Calculate how far price deviates from its moving average.
 
     Args:
@@ -57,6 +59,7 @@ def calc_ma_deviation(data: pd.DataFrame, periods: list[int] | tuple[int, ...] =
 
 
 # ── ATR / Average True Range ───────────────────────────────────────────────────
+
 
 def calc_atr(data: pd.DataFrame, period: int = 14) -> pd.Series:
     """Calculate Average True Range.
@@ -82,6 +85,7 @@ def calc_atr(data: pd.DataFrame, period: int = 14) -> pd.Series:
 
 
 # ── RSI ────────────────────────────────────────────────────────────────────────
+
 
 def calc_rsi(data: pd.DataFrame, period: int = 14) -> pd.Series:
     """Calculate Relative Strength Index.
@@ -109,6 +113,7 @@ def calc_rsi(data: pd.DataFrame, period: int = 14) -> pd.Series:
 
 # ── Volume Ratio (量比) ─────────────────────────────────────────────────────────
 
+
 def calc_volume_ratio(data: pd.DataFrame, period: int = 20) -> pd.Series:
     """Calculate volume ratio — current volume vs N-period average.
 
@@ -126,6 +131,7 @@ def calc_volume_ratio(data: pd.DataFrame, period: int = 20) -> pd.Series:
 
 
 # ── Bollinger Bands ────────────────────────────────────────────────────────────
+
 
 def calc_bollinger(data: pd.DataFrame, period: int = 20, num_std: float = 2.0) -> pd.DataFrame:
     """Calculate Bollinger Bands.
@@ -152,6 +158,7 @@ def calc_bollinger(data: pd.DataFrame, period: int = 20, num_std: float = 2.0) -
 
 
 # ── MACD ───────────────────────────────────────────────────────────────────────
+
 
 def calc_macd(
     data: pd.DataFrame,
@@ -186,7 +193,10 @@ def calc_macd(
 
 # ── Premium Rate (溢价率) ───────────────────────────────────────────────────────
 
-def calc_premium_rate(snapshot_price: float | pd.Series, nav: float | pd.Series) -> float | pd.Series:
+
+def calc_premium_rate(
+    snapshot_price: float | pd.Series, nav: float | pd.Series
+) -> float | pd.Series:
     """Calculate ETF premium/discount rate.
 
     Args:

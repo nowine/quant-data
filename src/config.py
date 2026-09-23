@@ -51,8 +51,10 @@ from pathlib import Path
 
 # Load .env for cron/isolated environments where system env vars may be absent
 try:
-    from dotenv import load_dotenv
     from pathlib import Path as _Path
+
+    from dotenv import load_dotenv
+
     _env_file = _Path(__file__).resolve().parent.parent / ".env"
     if _env_file.exists():
         load_dotenv(_env_file, override=True)
@@ -187,25 +189,25 @@ SLOW_API_TIMEOUT = 45  # seconds
 # Cache TTL — 数据类型对应的缓存有效期（小时）
 # =============================================================================
 CACHE_TTL = {
-    "etf_snapshot": 24,         # 当日
-    "macro_north_flow": 168,      # 7天
-    "etf_scale": 168,             # 7天
-    "margin": 24,                # 1天
-    "macro_pmi": 720,             # 30天
-    "macro_cpi": 720,             # 30天
-    "macro_ppi": 720,             # 30天
-    "macro_m2": 720,              # 30天
-    "macro_lpr": 168,             # 7天
-    "macro_shrzgm": 720,          # 30天
-    "macro_gdp": 2160,            # 90天
-    "macro_industrial": 720,      # 30天
-    "nav_history": 24,            # 当日
-    "index_valuation": 168,       # 7天
-    "holdings": 720,             # 30天
-    "manager_info": 720,          # 30天
-    "gold_info": 168,             # 7天
-    "strategy": 2160,             # 90天
-    "industry_alloc": 2160,       # 90天
+    "etf_snapshot": 24,  # 当日
+    "macro_north_flow": 168,  # 7天
+    "etf_scale": 168,  # 7天
+    "margin": 24,  # 1天
+    "macro_pmi": 720,  # 30天
+    "macro_cpi": 720,  # 30天
+    "macro_ppi": 720,  # 30天
+    "macro_m2": 720,  # 30天
+    "macro_lpr": 168,  # 7天
+    "macro_shrzgm": 720,  # 30天
+    "macro_gdp": 2160,  # 90天
+    "macro_industrial": 720,  # 30天
+    "nav_history": 24,  # 当日
+    "index_valuation": 168,  # 7天
+    "holdings": 720,  # 30天
+    "manager_info": 720,  # 30天
+    "gold_info": 168,  # 7天
+    "strategy": 2160,  # 90天
+    "industry_alloc": 2160,  # 90天
 }
 
 # =============================================================================
@@ -276,7 +278,7 @@ def init_config(path) -> None:
         )
 
     from src.config_loader import load_config  # lazy: keeps this module
-                                              # importable without jsonschema
+    # importable without jsonschema
 
     loaded = load_config(path)
 
@@ -290,6 +292,7 @@ def init_config(path) -> None:
     # Direct module-dict mutation ensures `from src.config import X` calls
     # in OTHER modules that fire after this point also see the new value.
     import sys
+
     this_module = sys.modules[__name__]
     this_module.ETF_WATCH_LIST = ETF_WATCH_LIST
     this_module.USER_HOLDINGS = USER_HOLDINGS

@@ -9,8 +9,8 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-
 # ── Contribution ───────────────────────────────────────────────────────────────
+
 
 def calc_contribution(returns_df: pd.DataFrame, weights: pd.Series) -> pd.DataFrame:
     """Calculate each holding's return contribution to portfolio return.
@@ -42,6 +42,7 @@ def calc_contribution(returns_df: pd.DataFrame, weights: pd.Series) -> pd.DataFr
 
 # ── Correlation ───────────────────────────────────────────────────────────────
 
+
 def calc_correlation(returns_df: pd.DataFrame) -> pd.DataFrame:
     """Calculate pairwise Pearson correlation matrix of asset returns.
 
@@ -55,6 +56,7 @@ def calc_correlation(returns_df: pd.DataFrame) -> pd.DataFrame:
 
 
 # ── Beta ───────────────────────────────────────────────────────────────────────
+
 
 def calc_beta(portfolio_returns: pd.Series, benchmark_returns: pd.Series) -> float:
     """Calculate portfolio beta vs a benchmark.
@@ -84,6 +86,7 @@ def calc_beta(portfolio_returns: pd.Series, benchmark_returns: pd.Series) -> flo
 
 
 # ── Max Drawdown ───────────────────────────────────────────────────────────────
+
 
 def calc_max_drawdown(equity_curve: pd.Series) -> dict:
     """Calculate maximum drawdown and its duration.
@@ -128,6 +131,7 @@ def calc_max_drawdown(equity_curve: pd.Series) -> dict:
 
 # ── Sharpe Ratio ───────────────────────────────────────────────────────────────
 
+
 def calc_sharpe(
     returns: pd.Series,
     risk_free_rate: float = 0.0,
@@ -157,6 +161,7 @@ def calc_sharpe(
 
 
 # ── Volatility ─────────────────────────────────────────────────────────────────
+
 
 def calc_volatility(
     returns: pd.Series,

@@ -20,19 +20,18 @@ from pathlib import Path
 
 import pandas as pd
 
-from src import config, logger as logger_module
+from src import config
+from src import logger as logger_module
 from src.akshare_client import (
-    get_margin_sh,
     get_cpi,
-    get_ppi,
-    get_pmi,
     get_gdp,
-    get_m2,
     get_lpr,
+    get_m2,
+    get_margin_sh,
+    get_pmi,
+    get_ppi,
 )
-from src.portfolio_calc import calc_sharpe, calc_volatility, calc_max_drawdown, calc_beta, calc_correlation
-from src.storage import save_csv, exists_today
-
+from src.storage import exists_today, save_csv
 
 # ── Error registry ─────────────────────────────────────────────────────────────
 
@@ -79,12 +78,14 @@ def _classify_exception(exc: BaseException) -> tuple[str, str]:
 
 # ── Clock stub ─────────────────────────────────────────────────────────────────
 
+
 def today() -> datetime.date:
     """Return today's date. Stubbed in tests."""
     return datetime.date.today()
 
 
 # ── File paths ─────────────────────────────────────────────────────────────────
+
 
 def _monthly_dir() -> Path:
     """Return the monthly data directory."""
@@ -129,15 +130,20 @@ def _portfolio_monthly_path() -> Path:
 
 # ── Helpers ─────────────────────────────────────────────────────────────────────
 
+
 def _run_portfolio_monthly() -> pd.DataFrame:
     """Compute monthly portfolio metrics: Sharpe, volatility, max drawdown, beta.
 
     Loads daily sector rank and index valuation data to compute monthly metrics.
     Returns empty DataFrame if insufficient data.
     """
-    return pd.DataFrame({
-        "note": ["monthly portfolio metrics require NAV history returns - use LLM for full analysis"],
-    })
+    return pd.DataFrame(
+        {
+            "note": [
+                "monthly portfolio metrics require NAV history returns - use LLM for full analysis"
+            ],
+        }
+    )
 
 
 def _collect_csv(
@@ -199,6 +205,7 @@ def _collect_csv(
 
 # ── Macro data collector (for get_macro_data) ──────────────────────────────────
 
+
 def get_macro_data() -> dict:
     """Fetch all macro data series and return a dict of DataFrames.
 
@@ -227,6 +234,7 @@ def get_macro_data() -> dict:
 
 
 # ── Core collector ──────────────────────────────────────────────────────────────
+
 
 def run_monthly() -> dict[str, dict]:
     """Collect monthly macro data.
@@ -303,7 +311,10 @@ def run_monthly() -> dict[str, dict]:
         lambda: _run_portfolio_monthly(),
         _portfolio_monthly_path(),
         errors,
-        suggestion="portfolio monthly metrics require NAV history returns; use LLM for full analysis",
+        suggestion=(
+            "portfolio monthly metrics require NAV history returns; "
+            "use LLM for full analysis"
+        ),
     )
 
     results["errors"] = errors
@@ -312,8 +323,10 @@ def run_monthly() -> dict[str, dict]:
 
 # ── CLI ───────────────────────────────────────────────────────────────────────
 
+
 def main() -> None:
     import argparse
+
     parser = argparse.ArgumentParser(description="Monthly ETF data collector")
     parser.add_argument(
         "--config",
@@ -329,6 +342,7 @@ def main() -> None:
     # Load externalized config FIRST (ADR-004). Fail-fast on any error.
     from src.config import init_config
     from src.config_loader import ConfigLoadError
+
     try:
         init_config(args.config)
     except ConfigLoadError as e:
@@ -337,8 +351,9 @@ def main() -> None:
 
     print("Running monthly collector...")
     result = run_monthly()
-    success = sum(1 for v in result.values()
-                  if isinstance(v, dict) and v.get("status") == "success")
+    success = sum(
+        1 for v in result.values() if isinstance(v, dict) and v.get("status") == "success"
+    )
     total = len(result)
     print(f"Done: {success}/{total} tasks succeeded.")
 

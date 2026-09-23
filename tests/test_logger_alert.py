@@ -3,12 +3,11 @@
 import importlib
 from datetime import date
 
-import pytest
-
 
 def test_alert_writes_csv(tmp_path, monkeypatch):
     """alert() creates alert_YYYYMMDD.csv with correct fields."""
-    from src import config, logger as logger_module
+    from src import config
+    from src import logger as logger_module
 
     importlib.reload(config)
     monkeypatch.setattr(config, "DATA_DIR", str(tmp_path))
@@ -28,7 +27,8 @@ def test_alert_writes_csv(tmp_path, monkeypatch):
 
 def test_alert_warn_level(tmp_path, monkeypatch):
     """alert() correctly records warn level."""
-    from src import config, logger as logger_module
+    from src import config
+    from src import logger as logger_module
 
     importlib.reload(config)
     monkeypatch.setattr(config, "DATA_DIR", str(tmp_path))
@@ -45,7 +45,8 @@ def test_alert_warn_level(tmp_path, monkeypatch):
 
 def test_alert_csv_header(tmp_path, monkeypatch):
     """alert() writes CSV header on first row."""
-    from src import config, logger as logger_module
+    from src import config
+    from src import logger as logger_module
 
     importlib.reload(config)
     monkeypatch.setattr(config, "DATA_DIR", str(tmp_path))
@@ -68,7 +69,8 @@ def test_alert_csv_header(tmp_path, monkeypatch):
 
 def test_alert_append_mode(tmp_path, monkeypatch):
     """Multiple alert() calls append to the same file."""
-    from src import config, logger as logger_module
+    from src import config
+    from src import logger as logger_module
 
     importlib.reload(config)
     monkeypatch.setattr(config, "DATA_DIR", str(tmp_path))

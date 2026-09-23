@@ -30,14 +30,16 @@ from src.config_schema import (
     validate_config,
 )
 
-
 # ── Happy path ────────────────────────────────────────────────────────────────
+
 
 class TestValidateConfigHappyPath:
     def test_full_config_passes(self):
         """All 4 lists present with valid entries → validate_config returns None."""
         data = {
-            "etf_watch_list": [{"code": "159530", "name": "机器人ETF易方达", "index": "中证机器人"}],
+            "etf_watch_list": [
+                {"code": "159530", "name": "机器人ETF易方达", "index": "中证机器人"}
+            ],
             "user_holdings": [{"code": "159530", "name": "机器人ETF易方达", "sector": "机器人"}],
             "index_watch_list": ["沪深300", "中证500"],
             "sector_mapping": {"机器人": ["159530"], "宽基": ["510300", "510500"]},
@@ -81,6 +83,7 @@ class TestValidateConfigHappyPath:
 
 # ── Required-field violations (fail-fast per ADR-004 Q13-A) ─────────────────
 
+
 class TestValidateConfigMissingFields:
     def test_missing_etf_code_raises(self):
         data = {"etf_watch_list": [{"name": "无code条目", "index": "沪深300"}]}
@@ -120,6 +123,7 @@ class TestValidateConfigMissingFields:
 
 # ── Type violations ──────────────────────────────────────────────────────────
 
+
 class TestValidateConfigWrongTypes:
     def test_etf_watch_list_must_be_list(self):
         with pytest.raises(ConfigSchemaError, match="etf_watch_list"):
@@ -143,6 +147,7 @@ class TestValidateConfigWrongTypes:
 
 
 # ── Error message usability ──────────────────────────────────────────────────
+
 
 class TestValidateConfigErrorMessages:
     def test_error_includes_path_to_offending_field(self):
@@ -176,6 +181,7 @@ class TestValidateConfigErrorMessages:
 
 
 # ── Schema export ────────────────────────────────────────────────────────────
+
 
 class TestSchemaExport:
     def test_schema_is_dict(self):

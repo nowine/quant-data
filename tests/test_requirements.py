@@ -19,9 +19,9 @@ def test_requirements_has_core_deps():
 
 def test_requirements_version_specified():
     lines = [
-        l.strip()
-        for l in REQUIREMENTS.read_text().splitlines()
-        if l.strip() and not l.startswith("#")
+        line.strip()
+        for line in REQUIREMENTS.read_text().splitlines()
+        if line.strip() and not line.startswith("#")
     ]
     for line in lines:
         assert ">=" in line or "==" in line, f"No version specifier: {line}"

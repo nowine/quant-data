@@ -23,6 +23,6 @@ def test_save_json_list(tmp_path):
 def test_load_json_nonexistent():
     try:
         load_json("/nonexistent/path.json")
-        assert False, "Should raise"
+        raise AssertionError("Should raise")
     except FileNotFoundError:
         pass
