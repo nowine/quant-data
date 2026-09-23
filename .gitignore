@@ -58,4 +58,4 @@ data/validate_failed/
 Thumbs.db
 
 # Git
-*.bak
+*.bak.venv/
