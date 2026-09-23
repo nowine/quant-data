@@ -44,6 +44,26 @@ class TestDateGateRemoval:
         import src.config as cfg
         importlib.reload(cfg)
 
+    def _write_test_config(self, tmp_path) -> str:
+        """Write a minimal valid etf_config.json into tmp_path and return its path.
+
+        Replaces the old hardcoded /root/secureshare/... path (unwritable here).
+        Empty lists validate per ADR-004 (only per-entry fields are strict).
+        """
+        import json
+
+        config_file = tmp_path / "etf_config.json"
+        config_file.write_text(
+            json.dumps({
+                "etf_watch_list": [],
+                "user_holdings": [],
+                "index_watch_list": [],
+                "sector_mapping": {},
+            }),
+            encoding="utf-8",
+        )
+        return str(config_file)
+
     def test_weekly_runs_on_non_monday(self, tmp_path):
         """Weekly collector must NOT early-exit on non-Monday (issue 1, L310-311).
 
@@ -60,7 +80,7 @@ class TestDateGateRemoval:
             # _main reads sys.argv — feed minimal args to hit the gate
             with patch.object(sys, "argv", [
                 "collector_weekly.py",
-                "--config", "/root/secureshare/files/ETF轮动分析框架/config/etf_config.json",
+                "--config", self._write_test_config(tmp_path),
             ]):
                 # Should NOT print "not Monday — weekly collector should run..."
                 # Should call run_weekly() instead. We mock run_weekly to avoid
@@ -84,7 +104,7 @@ class TestDateGateRemoval:
                         "Weekly collector should call run_weekly() on non-Monday"
                     )
 
-    def test_quarterly_runs_on_non_quarter_day(self):
+    def test_quarterly_runs_on_non_quarter_day(self, tmp_path):
         """Quarterly collector must NOT early-exit on non-quarter day (issue 2, L185).
 
         2026-08-23 is August — definitely not a quarterly run day.
@@ -96,7 +116,7 @@ class TestDateGateRemoval:
         with patch.object(collector_quarterly, "today", return_value=non_quarter):
             with patch.object(sys, "argv", [
                 "collector_quarterly.py",
-                "--config", "/root/secureshare/files/ETF轮动分析框架/config/etf_config.json",
+                "--config", self._write_test_config(tmp_path),
             ]):
                 with patch.object(
                     collector_quarterly, "run_quarterly",
@@ -114,7 +134,7 @@ class TestDateGateRemoval:
                         "Quarterly collector should call run_quarterly() on non-quarter day"
                     )
 
-    def test_daily_still_skips_on_weekend(self):
+    def test_daily_still_skips_on_weekend(self, tmp_path):
         """Daily collector MUST still early-exit on weekend (Q26 preserved).
 
         2026-08-23 is a Sunday — daily should print 'not a trading day' and exit 0.
@@ -128,7 +148,7 @@ class TestDateGateRemoval:
         with patch.object(collector_daily, "today", return_value=sunday):
             with patch.object(sys, "argv", [
                 "collector_daily.py",
-                "--config", "/root/secureshare/files/ETF轮动分析框架/config/etf_config.json",
+                "--config", self._write_test_config(tmp_path),
                 "--mode", "morning",
             ]):
                 # We expect SystemExit(0) BEFORE any run_*_mode() call.
