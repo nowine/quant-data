@@ -35,20 +35,31 @@ class TestConfigBasics:
             "TTFUND_APIKEY should be removed — ttfund_client is gone"
         )
 
-    def test_data_dir_default_is_repo_relative(self):
+    def test_data_dir_default_is_repo_relative(self, monkeypatch):
         """Default DATA_DIR (no QUANT_DATA_DIR set) must be <repo>/data."""
         from pathlib import Path
+        import importlib
 
         from src import config
 
-        expected = str(Path(config.__file__).resolve().parent.parent / "data")
-        assert config.DATA_DIR == expected, (
-            "DATA_DIR default must be repo-relative <repo>/data, "
-            "not a machine-specific absolute path"
-        )
-        assert not config.DATA_DIR.startswith("/root/"), (
-            "DATA_DIR must not contain the legacy /root hardcode"
-        )
+        # Isolate from any inherited QUANT_DATA_DIR in the outer shell:
+        # reload the module with the env var removed so we test the true
+        # default, then restore both env and module state afterwards.
+        monkeypatch.delenv("QUANT_DATA_DIR", raising=False)
+        importlib.reload(config)
+        try:
+            expected = str(Path(config.__file__).resolve().parent.parent / "data")
+            assert config.DATA_DIR == expected, (
+                "DATA_DIR default must be repo-relative <repo>/data, "
+                "not a machine-specific absolute path"
+            )
+            assert not config.DATA_DIR.startswith("/root/"), (
+                "DATA_DIR must not contain the legacy /root hardcode"
+            )
+        finally:
+            # monkeypatch restores the env var at teardown; re-sync the module
+            # to whatever the (possibly restored) environment says.
+            importlib.reload(config)
 
     def test_slow_api_timeout_default(self):
         """SLOW_API_TIMEOUT must default to 45"""

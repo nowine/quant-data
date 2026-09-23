@@ -53,10 +53,8 @@ class TestResolveExtraHoldings:
         assert result == []
 
     def test_single_new_code(self):
-        with patch(
-            "src.collector_daily.build_extra_holdings_set",
-            return_value=_akshare_enrichment(["512480"]),
-        ):
+        with patch.object(cd, "build_extra_holdings_set",
+                          return_value=_akshare_enrichment(["512480"])):
             result = cd._resolve_extra_holdings(
                 '[{"code": "512480"}]', existing_codes={"159530"}
             )
@@ -67,10 +65,8 @@ class TestResolveExtraHoldings:
 
     def test_dedup_against_existing(self):
         """Codes already in existing_codes are filtered out, with a warn log."""
-        with patch(
-            "src.collector_daily.build_extra_holdings_set",
-            return_value=_akshare_enrichment(["159530", "512480"]),
-        ):
+        with patch.object(cd, "build_extra_holdings_set",
+                          return_value=_akshare_enrichment(["159530", "512480"])):
             result = cd._resolve_extra_holdings(
                 '[{"code": "159530"}, {"code": "512480"}]',
                 existing_codes={"159530", "588750"},
@@ -83,10 +79,8 @@ class TestResolveExtraHoldings:
 
     def test_akshare_failure_returns_empty_list(self):
         """If akshare fails, _resolve_extra_holdings returns [] (best-effort)."""
-        with patch(
-            "src.collector_daily.build_extra_holdings_set",
-            side_effect=RuntimeError("akshare down"),
-        ):
+        with patch.object(cd, "build_extra_holdings_set",
+                          side_effect=RuntimeError("akshare down")):
             result = cd._resolve_extra_holdings(
                 '[{"code": "512480"}]', existing_codes=set()
             )
@@ -94,10 +88,8 @@ class TestResolveExtraHoldings:
 
     def test_existing_codes_defaults_to_empty(self):
         """existing_codes defaults to set() when not provided."""
-        with patch(
-            "src.collector_daily.build_extra_holdings_set",
-            return_value=_akshare_enrichment(["512480"]),
-        ):
+        with patch.object(cd, "build_extra_holdings_set",
+                          return_value=_akshare_enrichment(["512480"])):
             result = cd._resolve_extra_holdings('[{"code": "512480"}]')
         assert len(result) == 1
 
@@ -110,7 +102,7 @@ class TestRunCloseModeWithExtra:
         monkeypatch.setattr(cd, "_collect_csv", lambda *a, **kw: {"status": "success"})
         monkeypatch.setattr(cd, "_collect_json", lambda *a, **kw: {"status": "success"})
 
-        with patch("src.collector_daily._resolve_extra_holdings") as mock_resolve:
+        with patch.object(cd, "_resolve_extra_holdings") as mock_resolve:
             # _resolve_extra_holdings is always called; returns [] for None arg.
             mock_resolve.return_value = []
             result = cd.run_close_mode()
@@ -162,7 +154,7 @@ class TestRunMorningModeWithExtra:
         monkeypatch.setattr(cd, "_collect_csv", lambda *a, **kw: {"status": "success"})
         monkeypatch.setattr(cd, "_collect_json", lambda *a, **kw: {"status": "success"})
 
-        with patch("src.collector_daily._resolve_extra_holdings") as mock_resolve:
+        with patch.object(cd, "_resolve_extra_holdings") as mock_resolve:
             mock_resolve.return_value = []
             result = cd.run_morning_mode()
 
