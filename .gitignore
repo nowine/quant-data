@@ -59,3 +59,6 @@ Thumbs.db
 
 # Git
 *.bak.venv/
+
+# User-specific ETF config (copy from examples/etf_config.example.json)
+etf_config.json
