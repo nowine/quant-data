@@ -7,7 +7,7 @@ Public market data functions:
 - get_etf_snapshot()    : ETF real-time snapshot (THS, 1576 ETFs, 24h TTL)
 - get_north_flow()       : North-bound capital flow (hsgt, 168h TTL)
 - get_etf_history()      : ETF historical k-line with sina→em fallback (24h TTL)
-- get_us_stock_index()  : US major indices (Nasdaq/S&P/Dow Jones) via stock_us_spot_em (24h TTL)
+- get_us_stock_index()  : US major indices (Nasdaq/S&P/Dow), dual-source eastmoney→sina (24h TTL)
 - get_etf_scale()        : ETF scale on SSE (sse, 168h TTL)
 - get_margin_sh()        : Shanghai margin trading (sh, 24h TTL)
 - get_pmi()             : China manufacturing PMI (72h TTL)
@@ -25,6 +25,7 @@ Public market data functions:
 - get_stock_board_industry(): Industry board ranking (24h TTL)
 """
 
+import datetime
 import os
 import socket
 import time
@@ -219,29 +220,127 @@ def get_etf_history(code: str) -> pd.DataFrame:
     return _with_cache(f"etf_history_{code}", 24, _fetch)
 
 
+_US_INDEX_EM_NAME_TO_CODE = {
+    "标普500指数": ".INX",
+    "纳斯达克综合指数": ".IXIC",
+    "道琼斯工业指数": ".DJI",
+}
+_US_INDEX_SINA = {
+    ".INX": "标普500",
+    ".IXIC": "纳斯达克综合",
+    ".DJI": "道琼斯工业",
+}
+_US_INDEX_COLUMNS = ["指数代码", "指数名称", "日期", "收盘价", "涨跌幅"]
+
+
+def _fetch_us_index_primary() -> pd.DataFrame:
+    """Fetch US major indices via eastmoney spot table, normalized.
+
+    Returns columns [指数代码, 指数名称, 日期, 收盘价, 涨跌幅], one row per index
+    in fixed order. Raises if the endpoint fails OR no major-index row matches
+    (the old silent "return all rows" fallback leaked junk stock rows).
+    """
+    _rate_limit()
+    df = ak.stock_us_spot_em()
+    has_pct = "涨跌幅" in df.columns
+    rows = []
+    for em_name, code in _US_INDEX_EM_NAME_TO_CODE.items():
+        hit = df[df["名称"] == em_name]
+        if hit.empty:
+            continue
+        r = hit.iloc[0]
+        close = pd.to_numeric(r["最新价"], errors="coerce")
+        if pd.isna(close):
+            continue
+        pct = pd.to_numeric(r["涨跌幅"], errors="coerce") if has_pct else None
+        rows.append(
+            {
+                "指数代码": code,
+                "指数名称": em_name,
+                "日期": datetime.date.today().isoformat(),
+                "收盘价": float(close),
+                "涨跌幅": None if pct is None or pd.isna(pct) else float(pct),
+            }
+        )
+    if not rows:
+        raise ValueError(
+            f"stock_us_spot_em returned no major-index rows (got {len(df)} rows, "
+            f"needed {_US_INDEX_EM_NAME_TO_CODE})"
+        )
+    return pd.DataFrame(rows, columns=_US_INDEX_COLUMNS)
+
+
+def _fetch_us_index_sina() -> pd.DataFrame:
+    """Fetch US major indices via sina daily bars (index_us_stock_sina).
+
+    Takes the last 2 bars per index; close = latest close,
+    涨跌幅 = pct change vs previous close. Same normalized schema as primary.
+    Raises if any index has insufficient history (<2 bars).
+    """
+    frames = []
+    for symbol, name in _US_INDEX_SINA.items():
+        _rate_limit()
+        hist = ak.index_us_stock_sina(symbol=symbol)
+        if hist is None or len(hist) < 2:
+            raise ValueError(f"index_us_stock_sina({symbol}) returned <2 bars")
+        last = hist.iloc[-1]
+        prev_close = float(hist.iloc[-2]["close"])
+        close = float(last["close"])
+        frames.append(
+            {
+                "指数代码": symbol,
+                "指数名称": name,
+                "日期": str(last["date"]),
+                "收盘价": close,
+                "涨跌幅": round((close / prev_close - 1) * 100, 4),
+            }
+        )
+    return pd.DataFrame(frames, columns=_US_INDEX_COLUMNS)
+
+
+def _fetch_us_indices() -> pd.DataFrame:
+    """Dual-source US index fetch: eastmoney spot → sina daily-bar fallback.
+
+    Fallback engagement is logged as status=degraded so the collect log shows
+    which source served the data. Raises RuntimeError if both fail.
+    """
+    try:
+        return _fetch_us_index_primary()
+    except Exception as primary_err:
+        primary_detail = f"{type(primary_err).__name__}: {primary_err}"
+        log_collect(
+            task="us_stock_index",
+            source="us_stock_index",
+            status="degraded",
+            rows=0,
+            elapsed_sec=0.0,
+            message=f"primary source failed ({primary_detail}); falling back to sina",
+        )
+    try:
+        return _fetch_us_index_sina()
+    except Exception as sina_err:
+        # NOTE: primary_err is del-ed when its except block exits (PEP 3110),
+        # so the detail string must be captured inside that block.
+        raise RuntimeError(
+            f"us_stock_index: both sources failed — "
+            f"eastmoney: {primary_detail}; sina: {sina_err}"
+        ) from sina_err
+
+
 def get_us_stock_index() -> pd.DataFrame:
     """US stock market indices (Nasdaq, S&P500, Dow Jones) close prices.
 
-    Wraps ``akshare.stock_us_spot_em()``.
+    Dual-source with automatic fallback (2026-09-28):
+    1. Primary: ``akshare.stock_us_spot_em()`` (eastmoney realtime spot)
+    2. Fallback: ``akshare.index_us_stock_sina()`` (sina daily bars)
+
     Cache TTL: 24 hours (updated once per trading day).
 
     Returns:
-        DataFrame with 美股实时行情, filtered to major indices:
-        纳斯达克综合指数, 标普500指数, 道琼斯工业指数.
+        DataFrame [指数代码, 指数名称, 日期, 收盘价, 涨跌幅], 3 rows
+        (.INX / .IXIC / .DJI).
     """
-
-    def _fetch():
-        _rate_limit()
-        df = ak.stock_us_spot_em()
-        # Filter to known major US indices
-        index_names = ["纳斯达克综合指数", "标普500指数", "道琼斯工业指数"]
-        major = df[df["名称"].isin(index_names)]
-        if major.empty:
-            # Fallback: return all rows if index names don't match
-            return df
-        return major
-
-    return _with_cache("us_stock_index", 24, _fetch)
+    return _with_cache("us_stock_index", 24, _fetch_us_indices)
 
 
 def get_etf_scale() -> pd.DataFrame:

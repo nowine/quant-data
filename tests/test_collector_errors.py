@@ -338,6 +338,9 @@ class TestRunCloseModeErrors:
         ak.stock_us_spot_em = lambda: (_ for _ in ()).throw(
             ConnectionError("RemoteDisconnected('Remote end closed connection')")
         )
+        ak.index_us_stock_sina = lambda *a, **kw: (_ for _ in ()).throw(
+            ConnectionError("sina fallback also down")
+        )
 
         importlib.reload(ak_module)
         importlib.reload(af_module)
@@ -368,6 +371,7 @@ class TestRunCloseModeErrors:
         ak.macro_china_market_margin_sh = lambda: pd.DataFrame()
         ak.stock_hsgt_hist_em = lambda *a, **kw: pd.DataFrame()
         ak.stock_us_spot_em = lambda: pd.DataFrame()  # empty → degraded
+        ak.index_us_stock_sina = lambda *a, **kw: pd.DataFrame()  # fallback empty → error
 
         importlib.reload(ak_module)
         importlib.reload(af_module)
