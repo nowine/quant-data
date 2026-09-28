@@ -27,6 +27,23 @@ import pytest
 
 import src.collector_daily as cd
 
+
+@pytest.fixture(autouse=True)
+def _isolate_data_dir(monkeypatch, tmp_path):
+    """Isolate DATA_DIR so _resolve_extra_holdings' log_collect calls
+    (and any unmocked collector write) stay out of production logs.
+    Incident 2026-09-29: test-only error text ("akshare down") leaked into
+    the repo's real data/logs/collect_*.csv.
+    """
+    import importlib
+
+    from src import config
+    from src import logger as logger_module
+
+    importlib.reload(config)
+    monkeypatch.setattr(config, "DATA_DIR", str(tmp_path))
+    importlib.reload(logger_module)
+
 # ── helpers ────────────────────────────────────────────────────────────────────
 
 

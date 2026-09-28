@@ -5,8 +5,14 @@ Per ADR-004 + the unified-image decision (2026-08-21):
 - Public contract: `--script {daily|weekly|monthly|quarterly}` + forwarded args.
 - Wrong / missing script → non-zero exit (cron alert fires).
 
-These tests shell out to the bash script with PYTHONPATH=. so the inner
-python collectors can find src/.
+Hermetic since 2026-09-29: routing tests previously executed the REAL
+collector via subprocess on trading days — a full-suite run then fetched
+live akshare data and wrote 91 *_<today>.csv files into the repo's
+production data/ tree (incident: 00:18 writes cached-hit by the 07:00
+report). Now a `python3` shim replaces the interpreter: we assert only the
+routing (which script + args entrypoint dispatches), never run collection.
+QUANT_DATA_DIR is still pointed at a quarantine dir as belt-and-suspenders
+for any future test that runs real python.
 """
 
 from __future__ import annotations
@@ -28,14 +34,45 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-def _run(args, *, expect_exit: int = 0, timeout: int = 60) -> subprocess.CompletedProcess:
-    # Prepend the repo venv so entrypoint.sh's `python3` resolves to
-    # .venv/bin/python3 (with pandas), not the bare system interpreter.
+def _make_python_shim(shim_dir: Path) -> None:
+    """A fake python3 that echoes its argv so routing is assertable."""
+    shim = shim_dir / "python3"
+    shim.write_text('#!/bin/bash\necho "SHIM_PY $@"\nexit 0\n')
+    shim.chmod(0o755)
+
+
+@pytest.fixture(scope="module")
+def shim_env(tmp_path_factory):
+    """(shim_dir, quarantine_dir) shared by routing tests in this module."""
+    shim_dir = tmp_path_factory.mktemp("shim-bin")
+    _make_python_shim(shim_dir)
+    quarantine = tmp_path_factory.mktemp("quarantine")
+    return shim_dir, quarantine
+
+
+def _run(
+    args,
+    *,
+    expect_exit: int = 0,
+    timeout: int = 60,
+    shim_dir: Path | None = None,
+    quarantine: Path | None = None,
+) -> subprocess.CompletedProcess:
+    # Prepend the repo venv so entrypoint.sh's `python3` resolves predictably;
+    # when shim_dir is given it wins, so no real collection ever runs.
+    path_parts = []
+    if shim_dir is not None:
+        path_parts.append(str(shim_dir))
+    path_parts.append(str(PROJECT_ROOT / ".venv" / "bin"))
+    path_parts.append(os.environ["PATH"])
     env = {
         **os.environ,
         "PYTHONPATH": ".",
-        "PATH": str(PROJECT_ROOT / ".venv" / "bin") + os.pathsep + os.environ["PATH"],
+        "PATH": os.pathsep.join(path_parts),
     }
+    if quarantine is not None:
+        # Never let a child collector write into the repo's data/ tree.
+        env["QUANT_DATA_DIR"] = str(quarantine)
     return subprocess.run(
         ["bash", str(ENTRYPOINT), *args],
         cwd=str(PROJECT_ROOT),
@@ -65,61 +102,76 @@ class TestScriptRequired:
 
 
 class TestRouting:
-    def test_daily_routes_with_mode_morning(self):
+    def test_daily_routes_with_mode_morning(self, shim_env):
         """--script daily --mode morning dispatches to collector_daily."""
+        shim_dir, quarantine = shim_env
         result = _run(
             ["--script", "daily", "--mode", "morning", "--config", str(EXAMPLE_CONFIG)],
-            timeout=120,
+            timeout=60,
+            shim_dir=shim_dir,
+            quarantine=quarantine,
         )
-        # morning mode runs all collectors and exits 0 even on partial failures
-        # (P2 stubs are expected). Just verify it routed correctly.
-        assert (
-            "akshare_fund_client.get_index_info" in result.stdout
-            or "is_trading_day" in result.stdout
-            or result.returncode == 0
-        )
+        assert result.returncode == 0
+        assert "src/collector_daily.py" in result.stdout
+        assert "--mode morning" in result.stdout
 
-    def test_daily_routes_with_mode_close(self):
+    def test_daily_routes_with_mode_close(self, shim_env):
         """--script daily --mode close dispatches to collector_daily."""
+        shim_dir, quarantine = shim_env
         result = _run(
             ["--script", "daily", "--mode", "close", "--config", str(EXAMPLE_CONFIG)],
-            timeout=120,
+            timeout=60,
+            shim_dir=shim_dir,
+            quarantine=quarantine,
         )
         assert result.returncode == 0
+        assert "src/collector_daily.py" in result.stdout
+        assert "--mode close" in result.stdout
 
-    def test_weekly_routes(self):
-        """--script weekly → collector_weekly (date guard or real run)."""
+    def test_weekly_routes(self, shim_env):
+        """--script weekly → collector_weekly."""
+        shim_dir, quarantine = shim_env
         result = _run(
             ["--script", "weekly", "--config", str(EXAMPLE_CONFIG)],
+            timeout=60,
+            shim_dir=shim_dir,
+            quarantine=quarantine,
         )
         assert result.returncode == 0
-        # Friday (today) triggers the "not Monday" guard
-        assert "Monday" in result.stdout or "weekly" in result.stdout.lower()
+        assert "src/collector_weekly.py" in result.stdout
 
-    def test_monthly_routes(self):
+    def test_monthly_routes(self, shim_env):
         """--script monthly → collector_monthly."""
+        shim_dir, quarantine = shim_env
         result = _run(
             ["--script", "monthly", "--config", str(EXAMPLE_CONFIG)],
-            timeout=120,
+            timeout=60,
+            shim_dir=shim_dir,
+            quarantine=quarantine,
         )
         assert result.returncode == 0
-        assert "monthly" in result.stdout.lower() or "tasks" in result.stdout.lower()
+        assert "src/collector_monthly.py" in result.stdout
 
-    def test_quarterly_routes(self):
+    def test_quarterly_routes(self, shim_env):
         """--script quarterly → collector_quarterly."""
+        shim_dir, quarantine = shim_env
         result = _run(
             ["--script", "quarterly", "--config", str(EXAMPLE_CONFIG)],
+            timeout=60,
+            shim_dir=shim_dir,
+            quarantine=quarantine,
         )
         assert result.returncode == 0
-        assert "quarterly" in result.stdout.lower() or "not a quarterly" in result.stdout.lower()
+        assert "src/collector_quarterly.py" in result.stdout
 
 
 # ── Arg forwarding ────────────────────────────────────────────────────────────
 
 
 class TestArgForwarding:
-    def test_extra_holdings_forwarded(self, tmp_path):
+    def test_extra_holdings_forwarded(self, shim_env):
         """--extra-holdings JSON must pass through to collector_daily."""
+        shim_dir, quarantine = shim_env
         result = _run(
             [
                 "--script",
@@ -131,7 +183,10 @@ class TestArgForwarding:
                 "--extra-holdings",
                 '[{"code": "512480"}]',
             ],
-            timeout=120,
+            timeout=60,
+            shim_dir=shim_dir,
+            quarantine=quarantine,
         )
-        # Just confirm it didn't crash on the forwarded arg.
         assert result.returncode == 0
+        assert "--extra-holdings" in result.stdout
+        assert "512480" in result.stdout
