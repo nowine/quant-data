@@ -64,9 +64,17 @@ def test_dockerfile_exposes_entrypoint():
 
 
 def test_dockerfile_mounts_data_volume():
-    """docker-compose must bind-mount the data directory to /data inside container."""
+    """docker-compose must bind-mount the repo root to /data inside container.
+
+    Post-refactor (de26ff4) the data dir is repo-relative <repo>/data and
+    etf_config.json lives at <repo>/config/etf_config.json, so one bind mount
+    of the repo root covers both (/data/data and /data/config).
+    """
     content = COMPOSE_PATH.read_text()
     assert "/data" in content, "compose must expose /data inside container"
-    assert "/root/secureshare/files" in content, (
-        "compose must bind-mount /root/secureshare/files to /data"
+    assert ".:/data" in content, (
+        "compose must bind-mount the repo root (.) to /data"
+    )
+    assert "QUANT_DATA_DIR=/data/data" in content, (
+        "compose must set QUANT_DATA_DIR=/data/data inside container"
     )

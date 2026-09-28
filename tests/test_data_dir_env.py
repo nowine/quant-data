@@ -51,11 +51,15 @@ class TestDataDirEnv:
         importlib.reload(cfg)
 
     def test_default_is_repo_relative_path(self):
-        """Without QUANT_DATA_DIR set, DATA_DIR = <repo>/data (no /root hardcode)."""
+        """Without QUANT_DATA_DIR set, DATA_DIR = <repo>/data (no legacy hardcode)."""
         from src.config import DATA_DIR
 
         assert DATA_DIR == _HOST_DEFAULT
-        assert not DATA_DIR.startswith("/root/")
+        # Anti-regression: the pre-refactor default hardcoded the host path
+        # /root/secureshare/files/ETF轮动分析框架/data. The repo itself may
+        # legitimately live under /root/.openclaw/... on this host, so only
+        # the legacy secureshare path is forbidden here.
+        assert not DATA_DIR.startswith("/root/secureshare")
 
     def test_env_override_changes_data_dir(self):
         """QUANT_DATA_DIR env var must override the default at module import time."""

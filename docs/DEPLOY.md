@@ -65,10 +65,10 @@
    cd /root/.openclaw/workspace-agents/fullstack-engineer/projects/quant-data
    export PYTHONPATH=.
    # 清理今日缓存,确保走真实代码路径
-   rm -f /root/secureshare/files/ETF轮动分析框架/data/daily/*_{YYYY-MM-DD}.{csv,json}
+   rm -f /root/.openclaw/workspace-agents/fullstack-engineer/projects/quant-data/data/daily/*_{YYYY-MM-DD}.{csv,json}
    python3 src/collector_daily.py --mode=morning
    # 检查输出
-   ls -la /root/secureshare/files/ETF轮动分析框架/data/daily/*_{YYYY-MM-DD}.*
+   ls -la /root/.openclaw/workspace-agents/fullstack-engineer/projects/quant-data/data/daily/*_{YYYY-MM-DD}.*
    ```
 
 3. **失败兜底** — 如果手动跑挂,**禁用 cron job**:
@@ -77,7 +77,7 @@
    ```
    修复后重新开启。
 
-## 容器化部署架构 (2026-08-23 起生效)
+## 容器化部署架构 (2026-09-28 重构 de26ff4 后更新)
 
 **生产部署现在走 podman 容器隔离运行**。皮皮 (data-collector agent) 在宿主跑报告生成,但 collector (数据采集) 在容器内跑。
 
@@ -85,43 +85,44 @@
 
 | 层 | 跑在哪 | 负责什么 | 路径视角 |
 |---|---|---|---|
-| **皮皮 agent** (data-collector) | 宿主 (root) | 读 SKILL.md → 调 collector → 生成报告 (write 工具) | 用宿主绝对路径 `/root/secureshare/files/...` |
-| **collector 容器** | podman (容器内 root, 由 compose `user: "0:0"` 控制) | akshare 抓数据 → 写 CSV/JSON/log | 用容器内路径 `/data/...`, 映射宿主同一目录 |
+| **皮皮 agent** (data-collector) | 宿主 (root) | 读 SKILL.md → 调 collector → 生成报告 (write 工具) | 数据用 `<repo>/data/...`，报告用 `/root/secureshare/files/...` |
+| **collector 容器** | podman (容器内 root, 由 compose `user: "0:0"` 控制) | akshare 抓数据 → 写 CSV/JSON/log | 用容器内路径 `/data/...`, 映射宿主 repo 根目录 |
 | **Dockerfile** | 不变 | 多阶段构建镜像 `localhost/quant-collector:latest` | — |
 
 ### 为什么容器内 root 是 OK 的
 
-容器本身是隔离的。容器内 root 能修改挂载的 `/data` (绑宿主 ETF轮动分析框架),但不能影响宿主其它路径。
+容器本身是隔离的。容器内 root 能修改挂载的 `/data` (绑宿主 repo 根目录),但不能影响宿主其它路径。
 选择容器内 root 是为了匹配 dev 时代直跑路径 (避免旧 root-owned 文件需要 chown)。
 
-### 路径映射详解
+### 路径映射详解 (2026-09-28 重构后)
 
-docker-compose.yml 一行 bind-mount 把宿主目录全量映射:
+docker-compose.yml 一行 bind-mount 把宿主 **repo 根目录** 全量映射:
 ```yaml
 volumes:
-  - /root/secureshare/files/ETF轮动分析框架:/data
+  - .:/data
 ```
 
 容器内看到的路径 | 宿主看到的路径 | 内容
 ---|---|---
-`/data/config/etf_config.json` | `/root/secureshare/files/ETF轮动分析框架/config/etf_config.json` | ETF 列表配置
-`/data/data/daily/` | `/root/secureshare/files/ETF轮动分析框架/data/daily/` | 每日数据 CSV/JSON
+`/data/config/etf_config.json` | `<repo>/config/etf_config.json` | ETF 列表配置 (gitignore)
+`/data/data/daily/` | `<repo>/data/daily/` | 每日数据 CSV/JSON
 `/data/data/weekly/` | 同上 `data/weekly/` | 每周快照
 `/data/data/monthly/` | 同上 `data/monthly/` | 月度快照
 `/data/data/logs/` | 同上 `data/logs/` | 采集日志
-`/data/{YYYY-MM}/` | `/root/secureshare/files/ETF轮动分析框架/{YYYY-MM}/` | 报告输出 (皮皮 agent 在宿主写)
+
+报告输出不在挂载内：皮皮 agent 在宿主直接写 `/root/secureshare/files/ETF轮动分析框架/{YYYY-MM}/`。
 
 **皮皮 agent 永远用宿主路径** (它在宿主跑),跟容器路径**写法不同但指向同一目录**。
 
 ### QUANT_DATA_DIR env 机制
 
-`src/config.py:164` 的 `DATA_DIR` 现在读 env:
+`src/config.py` 的 `DATA_DIR` 读 env:
 ```python
-DATA_DIR = os.getenv("QUANT_DATA_DIR") or "/root/secureshare/files/ETF轮动分析框架/data"
+DATA_DIR = os.getenv("QUANT_DATA_DIR") or str(Path(__file__).resolve().parent.parent / "data")
 ```
 
 - 容器内 (docker-compose 设置): `QUANT_DATA_DIR=/data/data` → DATA_DIR = `/data/data`
-- 宿主 dev 直跑 (不设 env): DATA_DIR = 旧 host 默认
+- 宿主 dev 直跑 (不设 env): DATA_DIR = repo-relative `<repo>/data`
 - 设置空字符串 → fallback 默认
 - 详细测试见 `tests/test_data_dir_env.py`
 
@@ -142,7 +143,7 @@ podman build -t localhost/quant-collector:latest .
 ```bash
 cd /root/.openclaw/workspace-agents/fullstack-engineer/projects/quant-data
 PYTHONPATH=. python3 src/collector_daily.py --mode=morning \
-  --config /root/secureshare/files/ETF轮动分析框架/config/etf_config.json
+  --config config/etf_config.json
 ```
 
 但**生产 cron 必须走 podman**,跟 SKILL.md Step 1 一致。
@@ -153,15 +154,25 @@ PYTHONPATH=. python3 src/collector_daily.py --mode=morning \
 - **2026-08-23** (commit `5d8d42f` + `待 commit`): DATA_DIR 改 env override + compose `user: 0:0` + chmod 777。容器化部署正式生效。
 - **2026-08-23**: 4 个 SKILL.md (etf-morning/evening/weekly/monthly-report) Step 1 命令同步改成 podman。
 
-## 数据目录约定
+## 数据目录约定 (2026-09-28 重构 de26ff4 后)
+
+> **重构前**数据落在 `/root/secureshare/files/ETF轮动分析框架/data/`（已废弃，只读不写）。
+> **重构后**采集数据全部落在 repo 内，随代码走；报告输出仍在 secureshare。
 
 | 路径 | 内容 | 写入者 |
 |------|------|--------|
-| `/root/secureshare/files/ETF轮动分析框架/data/daily/` | 每日 CSV/JSON | collector_daily |
-| `/root/secureshare/files/ETF轮动分析框架/data/weekly/` | 每周快照 | collector_weekly |
-| `/root/secureshare/files/ETF轮动分析框架/data/monthly/` | 月度快照 | collector_monthly |
-| `/root/secureshare/files/ETF轮动分析框架/data/logs/` | 采集日志 | logger.py |
-| `/root/secureshare/files/ETF轮动分析框架/{YYYY-MM}/` | 报告输出 | 皮皮 agent |
+| `<repo>/data/daily/` | 每日 CSV/JSON | collector_daily |
+| `<repo>/data/weekly/` | 每周快照 | collector_weekly |
+| `<repo>/data/monthly/` | 月度快照 | collector_monthly |
+| `<repo>/data/logs/` | 采集日志 | logger.py |
+| `<repo>/config/etf_config.json` | ETF 配置 (gitignore) | 皮皮/主人 |
+| `/root/secureshare/files/ETF轮动分析框架/{YYYY-MM}/` | 报告输出 (不变) | 皮皮 agent |
+
+`<repo>` = `/root/.openclaw/workspace-agents/fullstack-engineer/projects/quant-data`
+
+**迁移说明 (2026-09-28)**：历史数据已用 rsync 从旧目录完整迁入 `<repo>/data/`
+(daily 2497 / weekly 7 / monthly 14 / quarterly 2 / cache 46 / logs 92 文件)，
+`etf_config.json` 已从旧 config 目录复制到 `<repo>/config/` 并验证可加载。
 
 ## 配置外部化 (2026-08-21 起生效)
 
@@ -169,7 +180,7 @@ PYTHONPATH=. python3 src/collector_daily.py --mode=morning \
 
 ### 皮皮怎么用
 
-**Step 1**:创建/编辑 `etf_config.json` (路径由你定,推荐 `/root/secureshare/files/ETF轮动分析框架/config/etf_config.json`):
+**Step 1**:创建/编辑 `etf_config.json` (推荐 `/root/.openclaw/workspace-agents/fullstack-engineer/projects/quant-data/config/etf_config.json`):
 
 ```json
 {
@@ -197,7 +208,7 @@ PYTHONPATH=. python3 src/collector_daily.py --mode=morning \
 ```bash
 cd /root/.openclaw/workspace-agents/fullstack-engineer/projects/quant-data
 export PYTHONPATH=.
-python3 src/collector_daily.py --mode=morning --config /root/secureshare/files/ETF轮动分析框架/config/etf_config.json
+python3 src/collector_daily.py --mode=morning --config config/etf_config.json
 ```
 
 **Step 3**:下次 cron 自动加载新 JSON(每次 isolated session 重新读文件)。
@@ -219,11 +230,11 @@ python3 src/collector_daily.py --mode=morning
 
 ```
 ## 持仓
-- 参考配置: /root/secureshare/files/ETF轮动分析框架/config/etf_config.json
+- 参考配置: /root/.openclaw/workspace-agents/fullstack-engineer/projects/quant-data/config/etf_config.json
 
 ## 执行
 python3 src/collector_daily.py --mode=morning \
-  --config /root/secureshare/files/ETF轮动分析框架/config/etf_config.json
+  --config config/etf_config.json
 ```
 
 ### 故障排查
@@ -250,7 +261,7 @@ git revert 334717b 9657c73 4da4572
 |------|--------|
 | 早报/晚报缺失 | `openclaw cron list` 看 job status, `ls -la /root/.openclaw/cron/runs/<job-id>.jsonl \| tail` |
 | NAV 数据缺失 | 跑 `python3 -c "from src.akshare_fund_client import get_nav_history; print(get_nav_history('510300')['data']['nav_history']['items'][:3])"` |
-| 数据目录空了 | 检查 `/root/secureshare/files/ETF轮动分析框架/data/` 是否还挂载, SecureShare 容器是否在跑 |
+| 数据目录空了 | 检查 `/root/.openclaw/workspace-agents/fullstack-engineer/projects/quant-data/data/` 是否存在；容器场景检查 compose 挂载 `.:/data` 是否生效 |
 | TTFUND 引用 | **不应再有**; 如 grep 命中 → 检查 `docs/adr-002-ttfund-to-akshare.md` 是否完整 |
 
 ---
@@ -259,17 +270,20 @@ git revert 334717b 9657c73 4da4572
 
 **皮皮调整监控标的的唯一合法途径** — 不改代码,改 JSON。
 
-### 生产路径(约定俗成)
+### 生产路径 (2026-09-28 重构后)
 
 ```
-/root/secureshare/files/ETF轮动分析框架/config/etf_config.json
+<repo>/config/etf_config.json
 ```
+
+(`repo` = `/root/.openclaw/workspace-agents/fullstack-engineer/projects/quant-data`;
+文件已 gitignore，个人持仓不入库。容器内等价路径 `/data/config/etf_config.json`)
 
 ### 首次部署
 
 ```bash
-cp projects/quant-data/examples/etf_config.example.json \
-   /root/secureshare/files/ETF轮动分析框架/config/etf_config.json
+cd <repo>
+cp examples/etf_config.example.json config/etf_config.json   # 然后编辑填入真实持仓
 ```
 
 ### 跟 4 个 cron job 的契约
@@ -278,7 +292,7 @@ cp projects/quant-data/examples/etf_config.example.json \
 
 ```bash
 python3 src/collector_daily.py --mode=morning \
-    --config /root/secureshare/files/ETF轮动分析框架/config/etf_config.json
+    --config config/etf_config.json
 ```
 
 **省略 `--config` → argparse exit 2 → cron 报警**。所以保持路径稳定,别随意换。
@@ -291,7 +305,7 @@ python3 src/collector_daily.py --mode=morning \
 cd /root/.openclaw/workspace-agents/fullstack-engineer/projects/quant-data
 export PYTHONPATH=.
 python3 src/collector_weekly.py \
-    --config /root/secureshare/files/ETF轮动分析框架/config/etf_config.json
+    --config config/etf_config.json
 ```
 
 即使不是周一(`Today is not Monday`)也走完 `init_config()`,说明 JSON 加载成功。
@@ -314,6 +328,7 @@ etf_config.json schema validation failed:
 **例外**: 想要新的字段(如 `risk_metrics`) = 改 schema (`src/config_schema.py`) + 改 `init_config` + 加测试。这是 ADR 范畴,不是日常维护。
 ## 版本历史
 
+- **2026-09-28** — 重构 de26ff4 落地适配：数据目录迁至 `<repo>/data`（QUANT_DATA_DIR 默认 repo-relative），compose 挂载改 `.:/data`，etf_config.json 迁至 `<repo>/config/`，4 个 SKILL + 4 个 cron prompt 同步更新；测试 324 passed；容器冒烟通过
 - **2026-08-22** — ADR-004 收尾: weekly/monthly/quarterly collector 也走 --config (`f4f031c`) + 容器化骨架 (entrypoint 路由, `848b7f5`) + docs/CONFIG.md 皮皮操作手册
 - **2026-08-20** — Phase 1: ttfund_client → akshare_fund_client 迁移 (`8e11d86`)
 - **2026-08-20** — Phase 1.1: load_csv 代码列 str/int 修复 (`80e5c47`)

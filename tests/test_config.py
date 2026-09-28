@@ -54,8 +54,8 @@ class TestConfigBasics:
                 "DATA_DIR default must be repo-relative <repo>/data, "
                 "not a machine-specific absolute path"
             )
-            assert not config.DATA_DIR.startswith("/root/"), (
-                "DATA_DIR must not contain the legacy /root hardcode"
+            assert not config.DATA_DIR.startswith("/root/secureshare"), (
+                "DATA_DIR must not contain the legacy /root/secureshare hardcode"
             )
         finally:
             # monkeypatch restores the env var at teardown; re-sync the module
