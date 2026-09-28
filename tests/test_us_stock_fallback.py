@@ -15,10 +15,24 @@ import pytest
 
 
 @pytest.fixture(autouse=True)
-def _no_rate_limit(monkeypatch):
-    """Skip the 5s inter-call sleep so unit tests run in seconds."""
+def _isolate_env(monkeypatch, tmp_path):
+    """Isolate DATA_DIR (no prod log/cache writes) and skip the 5s inter-call sleep.
+
+    log_collect resolves DATA_DIR at call time; without isolation the degraded
+    logs from these tests leaked into the repo's real data/logs/*.csv.
+    """
+    import importlib
+
+    from src import config
+    from src import logger as logger_module
+
+    importlib.reload(config)
+    monkeypatch.setattr(config, "DATA_DIR", str(tmp_path))
+    importlib.reload(logger_module)
+
     from src import akshare_client as ac
 
+    importlib.reload(ac)
     monkeypatch.setattr(ac, "_rate_limit", lambda: None)
 
 
