@@ -26,12 +26,8 @@ def test_example_has_comment():
         "when opening the example file. Don't strip it."
     )
     comment = data["_comment"]
-    assert "Copy" in comment or "copy" in comment, (
-        "_comment should include 'copy' instruction"
-    )
-    assert "etf_config.json" in comment, (
-        "_comment should reference the target filename"
-    )
+    assert "Copy" in comment or "copy" in comment, "_comment should include 'copy' instruction"
+    assert "etf_config.json" in comment, "_comment should reference the target filename"
 
 
 def test_example_has_quick_start():
@@ -43,7 +39,13 @@ def test_example_has_quick_start():
     )
     qs = data["_quick_start"]
     # Must contain the canonical 5 steps
-    expected_keys = ["1_copy", "2_verify_load", "3_user_holds_vs_watch", "4_required_fields", "5_help"]
+    expected_keys = [
+        "1_copy",
+        "2_verify_load",
+        "3_user_holds_vs_watch",
+        "4_required_fields",
+        "5_help",
+    ]
     for k in expected_keys:
         assert k in qs, f"_quick_start missing key: {k}"
         assert isinstance(qs[k], str) and qs[k], f"_quick_start[{k}] must be non-empty string"
@@ -52,8 +54,10 @@ def test_example_has_quick_start():
 def test_example_validates_against_schema():
     """The example must pass validate_config (ignoring _comment / _quick_start)."""
     import sys
+
     sys.path.insert(0, str(EXAMPLE.parent.parent))
     from src.config_schema import validate_config
+
     data = json.loads(EXAMPLE.read_text())
     # Strip metadata so validator sees only the 4 schema fields
     payload = {k: v for k, v in data.items() if not k.startswith("_")}

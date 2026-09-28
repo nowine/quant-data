@@ -40,18 +40,14 @@ from src.config import (
 )
 from src.config_loader import ConfigLoadError
 
-
 # ── Helpers ───────────────────────────────────────────────────────────────────
+
 
 def _write_minimal_config(path: Path, **overrides) -> Path:
     """Write a minimal valid config JSON file; allow overrides per list."""
     data = {
-        "etf_watch_list": [
-            {"code": "510300", "name": "沪深300ETF", "index": "沪深300"}
-        ],
-        "user_holdings": [
-            {"code": "159530", "name": "机器人ETF", "sector": "机器人"}
-        ],
+        "etf_watch_list": [{"code": "510300", "name": "沪深300ETF", "index": "沪深300"}],
+        "user_holdings": [{"code": "159530", "name": "机器人ETF", "sector": "机器人"}],
         "index_watch_list": ["沪深300"],
         "sector_mapping": {"宽基": ["510300"]},
     }
@@ -70,10 +66,12 @@ def _reset_module_state():
     init_config() mutates state. So between tests we reload.
     """
     import importlib
+
     importlib.reload(config_mod)
 
 
 # ── Pre-init state (back-compat per Q22-B) ───────────────────────────────────
+
 
 class TestPreInitState:
     def test_defaults_present_before_init(self):
@@ -91,6 +89,7 @@ class TestPreInitState:
 
 
 # ── init_config() success path ───────────────────────────────────────────────
+
 
 class TestInitConfigSuccess:
     def test_init_with_full_config_overrides_4_lists(self, tmp_path: Path):
@@ -138,6 +137,7 @@ class TestInitConfigSuccess:
 
 # ── init_config() failure path (fail-fast per Q13-A, Q20-B) ──────────────────
 
+
 class TestInitConfigFailure:
     def test_missing_file_raises(self, tmp_path: Path):
         _reset_module_state()
@@ -157,9 +157,9 @@ class TestInitConfigFailure:
     def test_schema_violation_raises(self, tmp_path: Path):
         _reset_module_state()
         bad = tmp_path / "bad_schema.json"
-        bad.write_text(json.dumps({
-            "etf_watch_list": [{"code": "12345", "name": "x", "index": "y"}]
-        }))
+        bad.write_text(
+            json.dumps({"etf_watch_list": [{"code": "12345", "name": "x", "index": "y"}]})
+        )
         with pytest.raises(ConfigLoadError):
             init_config(bad)
         assert is_initialized() is False
@@ -169,9 +169,13 @@ class TestInitConfigFailure:
         _reset_module_state()
         original_count = len(ETF_WATCH_LIST)
         bad = tmp_path / "bad_schema.json"
-        bad.write_text(json.dumps({
-            "etf_watch_list": [{"code": "12345"}]  # missing fields
-        }))
+        bad.write_text(
+            json.dumps(
+                {
+                    "etf_watch_list": [{"code": "12345"}]  # missing fields
+                }
+            )
+        )
         with pytest.raises(ConfigLoadError):
             init_config(bad)
         # Defaults still intact.
@@ -179,6 +183,7 @@ class TestInitConfigFailure:
 
 
 # ── Double-init protection ───────────────────────────────────────────────────
+
 
 class TestInitConfigDoubleCall:
     def test_calling_twice_raises(self, tmp_path: Path):
@@ -191,6 +196,7 @@ class TestInitConfigDoubleCall:
 
 # ── Back-compat: imports at module level still get defaults ─────────────────
 
+
 class TestBackCompatImports:
     def test_imported_default_matches_module_attr(self, tmp_path: Path):
         """`from src.config import ETF_WATCH_LIST` and `config.ETF_WATCH_LIST`
@@ -199,6 +205,7 @@ class TestBackCompatImports:
 
         # Before init: both should agree (both point to defaults).
         from src.config import ETF_WATCH_LIST as imported
+
         assert imported is config_mod.ETF_WATCH_LIST
 
         cfg_path = _write_minimal_config(tmp_path / "cfg.json")
@@ -211,6 +218,7 @@ class TestBackCompatImports:
 
 
 # ── Idempotency of is_initialized ────────────────────────────────────────────
+
 
 class TestIsInitialized:
     def test_starts_false(self):

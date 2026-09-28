@@ -12,10 +12,11 @@ Key scenarios tested:
 """
 
 import datetime
+
 import pandas as pd
-import pytest
 
 # ── collector_daily tests ──────────────────────────────────────────────────────
+
 
 def _reload(monkeypatch, tmp_path, extra_modules=None):
     """Reload collector_daily with patched DATA_DIR.
@@ -26,7 +27,9 @@ def _reload(monkeypatch, tmp_path, extra_modules=None):
         extra_modules: list of modules to reload before collector_daily
     """
     import importlib
-    from src import config, logger as logger_module
+
+    from src import config
+    from src import logger as logger_module
 
     importlib.reload(config)
     monkeypatch.setattr(config, "DATA_DIR", str(tmp_path))
@@ -37,6 +40,7 @@ def _reload(monkeypatch, tmp_path, extra_modules=None):
             importlib.reload(mod)
 
     from src import collector_daily
+
     importlib.reload(collector_daily)
     return collector_daily
 
@@ -147,7 +151,9 @@ class TestCollectCsvErrorPropagation:
 
 
 class TestCollectJsonErrorPropagation:
-    def test_collect_json_on_empty_data_returns_degraded_and_append_error(self, monkeypatch, tmp_path):
+    def test_collect_json_on_empty_data_returns_degraded_and_append_error(
+        self, monkeypatch, tmp_path
+    ):
         """_collect_json with empty/falsy data should return status=degraded and append error."""
         cd = _reload(monkeypatch, tmp_path)
         errors = []
@@ -192,7 +198,9 @@ class TestRunCloseModeErrors:
     def test_run_close_mode_always_has_errors_key(self, monkeypatch, tmp_path):
         """run_close_mode result should always contain 'errors' key, even if all succeed."""
         import importlib
-        from src import akshare_client as ak_module, akshare_fund_client as af_module
+
+        from src import akshare_client as ak_module
+        from src import akshare_fund_client as af_module
 
         importlib.reload(ak_module)
         importlib.reload(af_module)
@@ -201,11 +209,37 @@ class TestRunCloseModeErrors:
         monkeypatch.setattr(cd, "today", lambda: datetime.date(2026, 5, 20))
         # Mock akshare internals so no real network calls
         import akshare as ak
-        ak.fund_etf_category_ths = lambda: pd.DataFrame({"序号":[1],"基金代码":["510300"],"基金名称":["test"],"当前-单位净值":[3.8],"当前-累计净值":[3.8],"前一日-单位净值":[3.7],"前一日-累计净值":[3.7],"增长值":[0.1],"增长率":[2.7],"赎回状态":["开放"],"申购状态":["开放"],"最新-交易日":["2026-05-20"],"最新-单位净值":[3.8],"最新-累计净值":[3.8],"基金类型":["股票型"],"查询日期":["2026-05-20"]})
-        ak.macro_china_market_margin_sh = lambda: pd.DataFrame({"date": ["2026-05-20"], "balance": [1e9]})
-        ak.stock_hsgt_hist_em = lambda *a, **kw: pd.DataFrame({"date": ["2026-05-20"], "flow": [100]})
+
+        ak.fund_etf_category_ths = lambda: pd.DataFrame(
+            {
+                "序号": [1],
+                "基金代码": ["510300"],
+                "基金名称": ["test"],
+                "当前-单位净值": [3.8],
+                "当前-累计净值": [3.8],
+                "前一日-单位净值": [3.7],
+                "前一日-累计净值": [3.7],
+                "增长值": [0.1],
+                "增长率": [2.7],
+                "赎回状态": ["开放"],
+                "申购状态": ["开放"],
+                "最新-交易日": ["2026-05-20"],
+                "最新-单位净值": [3.8],
+                "最新-累计净值": [3.8],
+                "基金类型": ["股票型"],
+                "查询日期": ["2026-05-20"],
+            }
+        )
+        ak.macro_china_market_margin_sh = lambda: pd.DataFrame(
+            {"date": ["2026-05-20"], "balance": [1e9]}
+        )
+        ak.stock_hsgt_hist_em = lambda *a, **kw: pd.DataFrame(
+            {"date": ["2026-05-20"], "flow": [100]}
+        )
         ak.stock_us_spot_em = lambda: pd.DataFrame({"名称": ["标普500指数"], "最新价": [5000]})
-        af_module.get_nav_history = lambda code, rng: {"data": {"nav_history": {"items": [{"JZRQ": "2026-05-20", "DWJZ": "3.8"}]}}}
+        af_module.get_nav_history = lambda code, rng: {
+            "data": {"nav_history": {"items": [{"JZRQ": "2026-05-20", "DWJZ": "3.8"}]}}
+        }
 
         result = cd.run_close_mode()
 
@@ -215,22 +249,38 @@ class TestRunCloseModeErrors:
     def test_run_close_mode_empty_df_propagates_degraded_error(self, monkeypatch, tmp_path):
         """run_close_mode with empty akshare response should record degraded error."""
         import importlib
-        from src import akshare_client as ak_module, akshare_fund_client as af_module
+
         import akshare as ak
 
-        ths_mock_df = pd.DataFrame({
-            "序号":[1],"基金代码":["510300"],"基金名称":["test"],
-            "当前-单位净值":[3.8],"当前-累计净值":[3.8],
-            "前一日-单位净值":[3.7],"前一日-累计净值":[3.7],
-            "增长值":[0.1],"增长率":[2.7],
-            "赎回状态":["开放"],"申购状态":["开放"],
-            "最新-交易日":["2026-05-20"],"最新-单位净值":[3.8],
-            "最新-累计净值":[3.8],"基金类型":["股票型"],"查询日期":["2026-05-20"],
-        })
+        from src import akshare_client as ak_module
+        from src import akshare_fund_client as af_module
+
+        ths_mock_df = pd.DataFrame(
+            {
+                "序号": [1],
+                "基金代码": ["510300"],
+                "基金名称": ["test"],
+                "当前-单位净值": [3.8],
+                "当前-累计净值": [3.8],
+                "前一日-单位净值": [3.7],
+                "前一日-累计净值": [3.7],
+                "增长值": [0.1],
+                "增长率": [2.7],
+                "赎回状态": ["开放"],
+                "申购状态": ["开放"],
+                "最新-交易日": ["2026-05-20"],
+                "最新-单位净值": [3.8],
+                "最新-累计净值": [3.8],
+                "基金类型": ["股票型"],
+                "查询日期": ["2026-05-20"],
+            }
+        )
         # Set mocks BEFORE reload
         ak.fund_etf_category_ths = lambda: ths_mock_df
         ak.macro_china_market_margin_sh = lambda: pd.DataFrame()  # empty → degraded
-        ak.stock_hsgt_hist_em = lambda *a, **kw: pd.DataFrame({"date": ["2026-05-20"], "flow": [100]})
+        ak.stock_hsgt_hist_em = lambda *a, **kw: pd.DataFrame(
+            {"date": ["2026-05-20"], "flow": [100]}
+        )
         ak.stock_us_spot_em = lambda: pd.DataFrame({"名称": ["标普500指数"], "最新价": [5000]})
 
         importlib.reload(ak_module)
@@ -244,27 +294,47 @@ class TestRunCloseModeErrors:
 
         assert "errors" in result
         assert len(result["errors"]) >= 1
-        assert any("margin_sh" in e and "degraded" in e or "returned empty" in e for e in result["errors"])
+        assert any(
+            "margin_sh" in e and "degraded" in e or "returned empty" in e for e in result["errors"]
+        )
 
     def test_run_close_mode_exception_propagates_to_errors(self, monkeypatch, tmp_path):
-        """run_close_mode when an API raises should record error in result['errors'] with suggestion."""
+        """run_close_mode when an API raises: error goes to result['errors'] with suggestion."""
         import importlib
-        from src import akshare_client as ak_module, akshare_fund_client as af_module
+
         import akshare as ak
 
-        ths_mock_df = pd.DataFrame({
-            "序号":[1],"基金代码":["510300"],"基金名称":["test"],
-            "当前-单位净值":[3.8],"当前-累计净值":[3.8],
-            "前一日-单位净值":[3.7],"前一日-累计净值":[3.7],
-            "增长值":[0.1],"增长率":[2.7],
-            "赎回状态":["开放"],"申购状态":["开放"],
-            "最新-交易日":["2026-05-20"],"最新-单位净值":[3.8],
-            "最新-累计净值":[3.8],"基金类型":["股票型"],"查询日期":["2026-05-20"],
-        })
+        from src import akshare_client as ak_module
+        from src import akshare_fund_client as af_module
+
+        ths_mock_df = pd.DataFrame(
+            {
+                "序号": [1],
+                "基金代码": ["510300"],
+                "基金名称": ["test"],
+                "当前-单位净值": [3.8],
+                "当前-累计净值": [3.8],
+                "前一日-单位净值": [3.7],
+                "前一日-累计净值": [3.7],
+                "增长值": [0.1],
+                "增长率": [2.7],
+                "赎回状态": ["开放"],
+                "申购状态": ["开放"],
+                "最新-交易日": ["2026-05-20"],
+                "最新-单位净值": [3.8],
+                "最新-累计净值": [3.8],
+                "基金类型": ["股票型"],
+                "查询日期": ["2026-05-20"],
+            }
+        )
         # Set ALL akshare mocks BEFORE reload
         ak.fund_etf_category_ths = lambda: ths_mock_df
-        ak.macro_china_market_margin_sh = lambda: pd.DataFrame({"date": ["2026-05-20"], "balance": [1e9]})
-        ak.stock_hsgt_hist_em = lambda *a, **kw: pd.DataFrame({"date": ["2026-05-20"], "flow": [100]})
+        ak.macro_china_market_margin_sh = lambda: pd.DataFrame(
+            {"date": ["2026-05-20"], "balance": [1e9]}
+        )
+        ak.stock_hsgt_hist_em = lambda *a, **kw: pd.DataFrame(
+            {"date": ["2026-05-20"], "flow": [100]}
+        )
         ak.stock_us_spot_em = lambda: (_ for _ in ()).throw(
             ConnectionError("RemoteDisconnected('Remote end closed connection')")
         )
@@ -287,8 +357,11 @@ class TestRunCloseModeErrors:
     def test_run_close_mode_error_format_is_structured(self, monkeypatch, tmp_path):
         """Each error entry should follow '{task}: {detail}; suggestion: {action}' format."""
         import importlib
-        from src import akshare_client as ak_module, akshare_fund_client as af_module
+
         import akshare as ak
+
+        from src import akshare_client as ak_module
+        from src import akshare_fund_client as af_module
 
         # Set mocks BEFORE reload so akshare_client captures them at import time
         ak.fund_etf_category_ths = lambda: pd.DataFrame()
@@ -307,15 +380,18 @@ class TestRunCloseModeErrors:
 
         for err in result.get("errors", []):
             parts = err.split("; suggestion: ")
-            assert len(parts) == 2, f"Error format must be 'task: detail; suggestion: action', got: {err}"
+            assert len(parts) == 2, (
+                f"Error format must be 'task: detail; suggestion: action', got: {err}"
+            )
 
 
 class TestRunMorningModeErrors:
     def test_run_morning_mode_always_has_errors_key(self, monkeypatch, tmp_path):
         """run_morning_mode result should always contain 'errors' key, even if empty."""
+        import importlib
+
         from src import akshare_fund_client as af_module
 
-        import importlib
         importlib.reload(af_module)
 
         cd = _reload(monkeypatch, tmp_path, extra_modules=[af_module])
@@ -333,9 +409,10 @@ class TestRunMorningModeErrors:
 
     def test_run_morning_mode_error_format_is_structured(self, monkeypatch, tmp_path):
         """Each morning-mode error entry should follow '{task}: {detail}; suggestion: {action}'."""
+        import importlib
+
         from src import akshare_fund_client as af_module
 
-        import importlib
         importlib.reload(af_module)
 
         cd = _reload(monkeypatch, tmp_path, extra_modules=[af_module])
@@ -350,20 +427,26 @@ class TestRunMorningModeErrors:
 
         for err in result.get("errors", []):
             parts = err.split("; suggestion: ")
-            assert len(parts) == 2, f"Morning error format must be 'task: detail; suggestion: action', got: {err}"
+            assert len(parts) == 2, (
+                f"Morning error format must be 'task: detail; suggestion: action', got: {err}"
+            )
 
 
 # ── collector_weekly tests ──────────────────────────────────────────────────────
 
+
 def _reload_weekly(monkeypatch, tmp_path):
     """Reload collector_weekly with patched DATA_DIR."""
     import importlib
-    from src import config, logger as logger_module
+
+    from src import config
+    from src import logger as logger_module
 
     importlib.reload(config)
     monkeypatch.setattr(config, "DATA_DIR", str(tmp_path))
     importlib.reload(logger_module)
     from src import collector_weekly
+
     importlib.reload(collector_weekly)
     return collector_weekly
 
@@ -374,10 +457,13 @@ class TestWeeklyErrorPropagation:
         cw = _reload_weekly(monkeypatch, tmp_path)
         monkeypatch.setattr(cw, "today", lambda: datetime.date(2026, 5, 18))
 
-        from src import akshare_client as ak_module
         import importlib
+
+        from src import akshare_client as ak_module
+
         importlib.reload(ak_module)
         import akshare as ak
+
         ak.fund_etf_scale_sse = lambda: pd.DataFrame()
         ak.stock_hsgt_hist_em = lambda *a, **kw: pd.DataFrame()
         ak.fund_portfolio_industry_allocation_em = lambda year: pd.DataFrame()
@@ -392,10 +478,13 @@ class TestWeeklyErrorPropagation:
         cw = _reload_weekly(monkeypatch, tmp_path)
         monkeypatch.setattr(cw, "today", lambda: datetime.date(2026, 5, 18))
 
-        from src import akshare_client as ak_module
         import importlib
+
+        from src import akshare_client as ak_module
+
         importlib.reload(ak_module)
         import akshare as ak
+
         ak.fund_etf_scale_sse = lambda: pd.DataFrame()  # empty → degraded
         ak.stock_hsgt_hist_em = lambda *a, **kw: pd.DataFrame()
         ak.fund_portfolio_industry_allocation_em = lambda year: pd.DataFrame()
@@ -411,10 +500,13 @@ class TestWeeklyErrorPropagation:
         cw = _reload_weekly(monkeypatch, tmp_path)
         monkeypatch.setattr(cw, "today", lambda: datetime.date(2026, 5, 18))
 
-        from src import akshare_client as ak_module
         import importlib
+
+        from src import akshare_client as ak_module
+
         importlib.reload(ak_module)
         import akshare as ak
+
         ak.fund_etf_scale_sse = lambda: pd.DataFrame()
         ak.stock_hsgt_hist_em = lambda *a, **kw: pd.DataFrame()
         ak.fund_portfolio_industry_allocation_em = lambda year: (_ for _ in ()).throw(
@@ -434,10 +526,13 @@ class TestWeeklyErrorPropagation:
         cw = _reload_weekly(monkeypatch, tmp_path)
         monkeypatch.setattr(cw, "today", lambda: datetime.date(2026, 5, 18))
 
-        from src import akshare_client as ak_module
         import importlib
+
+        from src import akshare_client as ak_module
+
         importlib.reload(ak_module)
         import akshare as ak
+
         ak.fund_etf_scale_sse = lambda: pd.DataFrame()
         ak.stock_hsgt_hist_em = lambda *a, **kw: pd.DataFrame()
         ak.fund_portfolio_industry_allocation_em = lambda year: pd.DataFrame()
@@ -446,20 +541,26 @@ class TestWeeklyErrorPropagation:
 
         for err in result.get("errors", []):
             parts = err.split("; suggestion: ")
-            assert len(parts) == 2, f"Weekly error format must be 'task: detail; suggestion: action', got: {err}"
+            assert len(parts) == 2, (
+                f"Weekly error format must be 'task: detail; suggestion: action', got: {err}"
+            )
 
 
 # ── collector_monthly tests ────────────────────────────────────────────────────
 
+
 def _reload_monthly(monkeypatch, tmp_path):
     """Reload collector_monthly with patched DATA_DIR."""
     import importlib
-    from src import config, logger as logger_module
+
+    from src import config
+    from src import logger as logger_module
 
     importlib.reload(config)
     monkeypatch.setattr(config, "DATA_DIR", str(tmp_path))
     importlib.reload(logger_module)
     from src import collector_monthly
+
     importlib.reload(collector_monthly)
     return collector_monthly
 
@@ -470,10 +571,13 @@ class TestMonthlyErrorPropagation:
         cm = _reload_monthly(monkeypatch, tmp_path)
         monkeypatch.setattr(cm, "today", lambda: datetime.date(2026, 5, 1))
 
-        from src import akshare_client as ak_module
         import importlib
+
+        from src import akshare_client as ak_module
+
         importlib.reload(ak_module)
         import akshare as ak
+
         ak.macro_china_market_margin_sh = lambda: pd.DataFrame()
         ak.macro_china_cpi_yearly = lambda: pd.DataFrame()
         ak.macro_china_ppi_yearly = lambda: pd.DataFrame()
@@ -492,10 +596,13 @@ class TestMonthlyErrorPropagation:
         cm = _reload_monthly(monkeypatch, tmp_path)
         monkeypatch.setattr(cm, "today", lambda: datetime.date(2026, 5, 1))
 
-        from src import akshare_client as ak_module
         import importlib
+
+        from src import akshare_client as ak_module
+
         importlib.reload(ak_module)
         import akshare as ak
+
         ak.macro_china_market_margin_sh = lambda: pd.DataFrame()
         ak.macro_china_cpi_yearly = lambda: pd.DataFrame()
         ak.macro_china_ppi_yearly = lambda: pd.DataFrame()
@@ -514,10 +621,13 @@ class TestMonthlyErrorPropagation:
         cm = _reload_monthly(monkeypatch, tmp_path)
         monkeypatch.setattr(cm, "today", lambda: datetime.date(2026, 5, 1))
 
-        from src import akshare_client as ak_module
         import importlib
+
+        from src import akshare_client as ak_module
+
         importlib.reload(ak_module)
         import akshare as ak
+
         ak.macro_china_market_margin_sh = lambda: pd.DataFrame()
         ak.macro_china_cpi_yearly = lambda: (_ for _ in ()).throw(
             ConnectionError("CPI API unavailable")
@@ -541,10 +651,13 @@ class TestMonthlyErrorPropagation:
         cm = _reload_monthly(monkeypatch, tmp_path)
         monkeypatch.setattr(cm, "today", lambda: datetime.date(2026, 5, 1))
 
-        from src import akshare_client as ak_module
         import importlib
+
+        from src import akshare_client as ak_module
+
         importlib.reload(ak_module)
         import akshare as ak
+
         ak.macro_china_market_margin_sh = lambda: pd.DataFrame()
         ak.macro_china_cpi_yearly = lambda: pd.DataFrame()
         ak.macro_china_ppi_yearly = lambda: pd.DataFrame()
@@ -557,4 +670,6 @@ class TestMonthlyErrorPropagation:
 
         for err in result.get("errors", []):
             parts = err.split("; suggestion: ")
-            assert len(parts) == 2, f"Monthly error format must be 'task: detail; suggestion: action', got: {err}"
+            assert len(parts) == 2, (
+                f"Monthly error format must be 'task: detail; suggestion: action', got: {err}"
+            )

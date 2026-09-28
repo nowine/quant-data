@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import os
 import subprocess
-import sys
 from pathlib import Path
 
 import pytest
@@ -21,10 +20,22 @@ import pytest
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 ENTRYPOINT = PROJECT_ROOT / "scripts" / "entrypoint.sh"
 EXAMPLE_CONFIG = PROJECT_ROOT / "examples" / "etf_config.example.json"
+VENV_PYTHON = PROJECT_ROOT / ".venv" / "bin" / "python3"
+
+pytestmark = pytest.mark.skipif(
+    not VENV_PYTHON.exists(),
+    reason="repo .venv not available; entrypoint.sh needs a python3 with pandas",
+)
 
 
 def _run(args, *, expect_exit: int = 0, timeout: int = 60) -> subprocess.CompletedProcess:
-    env = {**os.environ, "PYTHONPATH": "."}
+    # Prepend the repo venv so entrypoint.sh's `python3` resolves to
+    # .venv/bin/python3 (with pandas), not the bare system interpreter.
+    env = {
+        **os.environ,
+        "PYTHONPATH": ".",
+        "PATH": str(PROJECT_ROOT / ".venv" / "bin") + os.pathsep + os.environ["PATH"],
+    }
     return subprocess.run(
         ["bash", str(ENTRYPOINT), *args],
         cwd=str(PROJECT_ROOT),
@@ -36,6 +47,7 @@ def _run(args, *, expect_exit: int = 0, timeout: int = 60) -> subprocess.Complet
 
 
 # ── Required --script ─────────────────────────────────────────────────────────
+
 
 class TestScriptRequired:
     def test_missing_script_exits_nonzero(self):
@@ -51,25 +63,26 @@ class TestScriptRequired:
 
 # ── Routing ───────────────────────────────────────────────────────────────────
 
+
 class TestRouting:
     def test_daily_routes_with_mode_morning(self):
         """--script daily --mode morning dispatches to collector_daily."""
         result = _run(
-            ["--script", "daily", "--mode", "morning",
-             "--config", str(EXAMPLE_CONFIG)],
+            ["--script", "daily", "--mode", "morning", "--config", str(EXAMPLE_CONFIG)],
             timeout=120,
         )
         # morning mode runs all collectors and exits 0 even on partial failures
         # (P2 stubs are expected). Just verify it routed correctly.
-        assert "akshare_fund_client.get_index_info" in result.stdout or \
-               "is_trading_day" in result.stdout or \
-               result.returncode == 0
+        assert (
+            "akshare_fund_client.get_index_info" in result.stdout
+            or "is_trading_day" in result.stdout
+            or result.returncode == 0
+        )
 
     def test_daily_routes_with_mode_close(self):
         """--script daily --mode close dispatches to collector_daily."""
         result = _run(
-            ["--script", "daily", "--mode", "close",
-             "--config", str(EXAMPLE_CONFIG)],
+            ["--script", "daily", "--mode", "close", "--config", str(EXAMPLE_CONFIG)],
             timeout=120,
         )
         assert result.returncode == 0
@@ -103,13 +116,21 @@ class TestRouting:
 
 # ── Arg forwarding ────────────────────────────────────────────────────────────
 
+
 class TestArgForwarding:
     def test_extra_holdings_forwarded(self, tmp_path):
         """--extra-holdings JSON must pass through to collector_daily."""
         result = _run(
-            ["--script", "daily", "--mode", "morning",
-             "--config", str(EXAMPLE_CONFIG),
-             "--extra-holdings", '[{"code": "512480"}]'],
+            [
+                "--script",
+                "daily",
+                "--mode",
+                "morning",
+                "--config",
+                str(EXAMPLE_CONFIG),
+                "--extra-holdings",
+                '[{"code": "512480"}]',
+            ],
             timeout=120,
         )
         # Just confirm it didn't crash on the forwarded arg.

@@ -35,7 +35,6 @@ import pandas as pd
 from src.logger import log_collect
 from src.storage import save_csv
 
-
 _MIN_INTERVAL = 5.0  # seconds between consecutive calls (avoids getting blocked)
 _last_call_time: float = 0.0
 
@@ -78,6 +77,7 @@ def _with_cache(cache_key: str, ttl_hours: int, fetch_fn: callable) -> pd.DataFr
     # any future re-resolution (env override, init_config, reload) takes effect.
     # Same pattern used by collector_daily/weekly/monthly/quarterly.
     import src.config as _config
+
     cache_dir = os.path.join(_config.DATA_DIR, "cache")
     cache_file = os.path.join(cache_dir, f"{cache_key}.csv")
 
@@ -113,9 +113,7 @@ def _with_cache(cache_key: str, ttl_hours: int, fetch_fn: callable) -> pd.DataFr
     return df
 
 
-def get_akshare_data(
-    cache_key: str, ttl_hours: int, fetch_fn: callable
-) -> pd.DataFrame:
+def get_akshare_data(cache_key: str, ttl_hours: int, fetch_fn: callable) -> pd.DataFrame:
     """Public entry point: fetch data with TTL cache.
 
     This is a thin wrapper around ``_with_cache`` for callers that don't need
@@ -392,7 +390,7 @@ def _degrade_to_empty(fetch_fn: callable, api_name: str) -> pd.DataFrame:
     try:
         return fetch_fn()
     except Exception as e:
-        logger_module.log_collect(
+        log_collect(
             task=api_name,
             source="akshare_client",
             status="degraded",
@@ -414,7 +412,8 @@ def get_fx_rate() -> pd.DataFrame:
         If empty, use LLM to search for current USD/CNY rate.
     """
     return _with_cache(
-        "fx_usd_cny", 24,
+        "fx_usd_cny",
+        24,
         lambda: _degrade_to_empty(lambda: ak.currency_history(), "fx_rate"),
     )
 
@@ -430,7 +429,8 @@ def get_futures_basis() -> pd.DataFrame:
         If empty, use LLM to search for current basis data.
     """
     return _with_cache(
-        "futures_basis", 24,
+        "futures_basis",
+        24,
         lambda: _degrade_to_empty(lambda: ak.futures_roll_price(), "futures_basis"),
     )
 
@@ -446,7 +446,8 @@ def get_commodity_price() -> pd.DataFrame:
         If empty, use LLM to search for current prices.
     """
     return _with_cache(
-        "commodity_price", 24,
+        "commodity_price",
+        24,
         lambda: _degrade_to_empty(lambda: ak.futures_child_table(), "commodity_price"),
     )
 
@@ -461,6 +462,9 @@ def get_stock_board_industry() -> pd.DataFrame:
         DataFrame with industry board data (板块名称, 涨跌幅, 成交额等).
     """
     return _with_cache(
-        "stock_board_industry", 24,
-        lambda: _degrade_to_empty(lambda: ak.stock_board_industry_name_em(), "stock_board_industry"),
+        "stock_board_industry",
+        24,
+        lambda: _degrade_to_empty(
+            lambda: ak.stock_board_industry_name_em(), "stock_board_industry"
+        ),
     )

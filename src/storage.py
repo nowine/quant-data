@@ -18,9 +18,9 @@ def save_csv(df: pd.DataFrame, filepath: str, append: bool = False) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
 
     if append:
-        df.to_csv(path, mode='a', header=not path.exists(), index=False, encoding='utf-8')
+        df.to_csv(path, mode="a", header=not path.exists(), index=False, encoding="utf-8")
     else:
-        df.to_csv(path, mode='w', header=True, index=False, encoding='utf-8')
+        df.to_csv(path, mode="w", header=True, index=False, encoding="utf-8")
 
 
 def load_csv(filepath: str) -> pd.DataFrame:
@@ -29,7 +29,8 @@ def load_csv(filepath: str) -> pd.DataFrame:
     Preserves the '代码' (ETF code) column as str when present — this matters
     because akshare_client.get_etf_snapshot writes codes as str (e.g. "159530")
     to keep leading zeros intact and to support string-based membership checks
-    downstream (e.g. ``df["代码"] == "159530"`` in collector_daily._run_premium_rate_for_user_holdings).
+    downstream (e.g. ``df["代码"] == "159530"`` in
+    collector_daily._run_premium_rate_for_user_holdings).
 
     Args:
         filepath: Path to the CSV file.
@@ -43,7 +44,7 @@ def load_csv(filepath: str) -> pd.DataFrame:
     path = Path(filepath)
     if not path.exists():
         raise FileNotFoundError(f"CSV file not found: {filepath}")
-    df = pd.read_csv(path, encoding='utf-8')
+    df = pd.read_csv(path, encoding="utf-8")
     if "代码" in df.columns:
         df["代码"] = df["代码"].astype(str)
     return df
@@ -79,8 +80,9 @@ def collect_if_missing(
     Returns:
         DataFrame from cache or freshly fetched.
     """
-    from src.logger import log_collect
     import time
+
+    from src.logger import log_collect
 
     start = time.time()
     filename = Path(filepath).name
@@ -122,7 +124,7 @@ def save_json(data: list | dict, filepath: str) -> None:
     """
     path = Path(filepath)
     path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, 'w', encoding='utf-8') as f:
+    with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 
@@ -141,5 +143,5 @@ def load_json(filepath: str) -> list | dict:
     path = Path(filepath)
     if not path.exists():
         raise FileNotFoundError(f"JSON file not found: {filepath}")
-    with open(path, 'r', encoding='utf-8') as f:
+    with open(path, encoding="utf-8") as f:
         return json.load(f)

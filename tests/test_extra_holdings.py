@@ -30,18 +30,16 @@ class TestParseExtraHoldingsHappyPath:
         assert result == [{"code": "159530"}]
 
     def test_single_entry_with_name(self):
-        result = parse_extra_holdings_arg(
-            '[{"code": "159530", "name": "机器人ETF易方达"}]'
-        )
+        result = parse_extra_holdings_arg('[{"code": "159530", "name": "机器人ETF易方达"}]')
         assert result == [{"code": "159530", "name": "机器人ETF易方达"}]
 
     def test_multiple_entries_mixed_fields(self):
         raw = (
-            '['
+            "["
             '{"code": "159530", "name": "机器人ETF易方达", "sector": "机器人"}, '
             '{"code": "512480"}, '
             '{"code": "512690", "name": "白酒ETF鹏华"}'
-            ']'
+            "]"
         )
         result = parse_extra_holdings_arg(raw)
         assert result == [

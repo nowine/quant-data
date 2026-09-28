@@ -1,9 +1,10 @@
 """Tests for src.validator module."""
 
 import os
+
 import pandas as pd
 
-from src.validator import ValidationResult, validate, check_stale
+from src.validator import ValidationResult, check_stale, validate
 
 
 def test_validation_result_model():
@@ -57,12 +58,14 @@ def test_validate_row_count_below_threshold():
 
 def test_check_stale_fresh(tmp_path):
     from src.storage import save_csv
+
     save_csv(pd.DataFrame({"a": [1]}), str(tmp_path / "fresh.csv"))
     assert not check_stale(str(tmp_path / "fresh.csv"), max_age_hours=24)
 
 
 def test_check_stale_old(tmp_path):
     from src.storage import save_csv
+
     save_csv(pd.DataFrame({"a": [1]}), str(tmp_path / "old.csv"))
     # Manually set mtime to 2 days ago
     two_days_ago = os.path.getmtime(str(tmp_path / "old.csv")) - 2 * 86400

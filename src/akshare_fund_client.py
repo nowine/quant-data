@@ -1,4 +1,4 @@
-"""Fund data client backed by akshare — drop-in replacement for ttfund_client.
+r"""Fund data client backed by akshare — drop-in replacement for ttfund_client.
 
 Public API mirrors `src.ttfund_client` exactly so callers can migrate without code
 changes. Internal implementations:
@@ -42,16 +42,17 @@ def _get_ak():
     if _ak is None:
         try:
             import akshare as ak
+
             _ak = ak
         except ImportError as e:
             raise RuntimeError(
-                "akshare is required for akshare_fund_client; "
-                "install with `pip install akshare`"
+                "akshare is required for akshare_fund_client; install with `pip install akshare`"
             ) from e
     return _ak
 
 
 # ── Custom Exceptions ─────────────────────────────────────────────────────────
+
 
 class AkshareFundError(Exception):
     """Base exception for all akshare fund client errors."""
@@ -74,6 +75,7 @@ class AkshareFundDataError(AkshareFundError):
 
 # ── Internal helpers ──────────────────────────────────────────────────────────
 
+
 def _now_ms() -> int:
     return int(time.time() * 1000)
 
@@ -90,14 +92,16 @@ def _wrap_nav_df_as_ttfund(df: Any, *, fund_id: str, range_str: str) -> dict:
     items = []
     # akshare returns OLDEST-first; reverse so callers' items[0] is the latest.
     for _, row in df.iloc[::-1].iterrows():
-        items.append({
-            "FSRQ": str(row.get("净值日期", "")),
-            "DWJZ": str(row.get("单位净值", "")),
-            "JZZZL": str(row.get("日增长率", "")),
-            "LJJZ": str(row.get("单位净值", "")),  # akshare 不提供累计净值,fallback
-            "NAVTYPE": "1",
-            "RATE": "--",
-        })
+        items.append(
+            {
+                "FSRQ": str(row.get("净值日期", "")),
+                "DWJZ": str(row.get("单位净值", "")),
+                "JZZZL": str(row.get("日增长率", "")),
+                "LJJZ": str(row.get("单位净值", "")),  # akshare 不提供累计净值,fallback
+                "NAVTYPE": "1",
+                "RATE": "--",
+            }
+        )
     return {"data": {"nav_history": {"items": items}}}
 
 
@@ -116,6 +120,7 @@ def _stub_log(func_name: str, note: str = "") -> None:
 
 
 # ── High-level API wrappers (signatures mirror src.ttfund_client) ──────────────
+
 
 def get_nav_history(fund_id: str, range: str = "y") -> dict:
     """Return NAV history for fund ``fund_id``.
@@ -290,6 +295,7 @@ def get_fund_info(fcode: str) -> dict:
 
 
 # ── Public generic entry point (kept for parity with ttfund_client.call) ──────
+
 
 def call(skill_id: str, params: dict[str, Any], *, version: str = "1.0") -> dict:
     """Generic skill dispatcher — kept for signature parity only.

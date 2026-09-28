@@ -7,9 +7,9 @@ Unified-image contract (2026-08-21, per ADR-004 + 主人 unification decision):
 """
 
 import re
-import yaml
 from pathlib import Path
 
+import yaml
 
 COMPOSE_PATH = Path(__file__).parent.parent / "docker-compose.yml"
 DOCKERFILE_PATH = Path(__file__).parent.parent / "Dockerfile"

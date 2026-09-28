@@ -71,23 +71,17 @@ def parse_extra_holdings_arg(raw: str) -> list[dict[str, Any]]:
         ) from e
 
     if not isinstance(data, list):
-        raise ValueError(
-            f"--extra-holdings must be a JSON array; got {type(data).__name__}"
-        )
+        raise ValueError(f"--extra-holdings must be a JSON array; got {type(data).__name__}")
 
     result: list[dict[str, Any]] = []
     for i, item in enumerate(data):
         if not isinstance(item, dict):
-            raise ValueError(
-                f"--extra-holdings[{i}] must be an object; got {type(item).__name__}"
-            )
+            raise ValueError(f"--extra-holdings[{i}] must be an object; got {type(item).__name__}")
         if "code" not in item:
             raise ValueError(f"--extra-holdings[{i}] missing required field 'code'")
         code = item["code"]
         if not isinstance(code, str) or not _CODE_PATTERN.match(code):
-            raise ValueError(
-                f"--extra-holdings[{i}].code must be a 6-digit string; got {code!r}"
-            )
+            raise ValueError(f"--extra-holdings[{i}].code must be a 6-digit string; got {code!r}")
 
         # Build a fresh dict per entry so callers can't mutate shared state.
         entry: dict[str, Any] = {"code": code}

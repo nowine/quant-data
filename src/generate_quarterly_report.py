@@ -17,10 +17,11 @@ from pathlib import Path
 
 import pandas as pd
 
-from src import config, logger as logger_module
-
+from src import config
+from src import logger as logger_module
 
 # ── Clock stub ─────────────────────────────────────────────────────────────────
+
 
 def today() -> datetime.date:
     """Return today's date. Stubbed in tests."""
@@ -28,6 +29,7 @@ def today() -> datetime.date:
 
 
 # ── File paths ─────────────────────────────────────────────────────────────────
+
 
 def _quarterly_dir() -> Path:
     d = Path(config.DATA_DIR) / "quarterly"
@@ -75,6 +77,7 @@ def _latest_north_flow_file(quarter_end: datetime.date) -> Path | None:
 
 # ── Data loading helpers ───────────────────────────────────────────────────────
 
+
 def _load_holdings_summary() -> dict:
     """Load all holdings CSVs and return a dict keyed by fund code."""
     quarterly = _quarterly_dir()
@@ -121,6 +124,7 @@ def _load_index_valuation() -> dict:
 
 # ── Metrics computation ─────────────────────────────────────────────────────────
 
+
 def _compute_etf_performance() -> list[dict]:
     """Compute quarterly performance for each ETF in the watch list."""
     results = []
@@ -164,12 +168,14 @@ def _compute_etf_performance() -> list[dict]:
             change_str = ""
             if not fund_holdings.empty and "季度变化" in fund_holdings.columns:
                 change_str = ", ".join(fund_holdings["季度变化"].dropna().astype(str).head(3))
-            results.append({
-                "code": code,
-                "name": etf["name"],
-                "quarter_change": f"{change_pct:+.2f}%",
-                "holdings_change": change_str,
-            })
+            results.append(
+                {
+                    "code": code,
+                    "name": etf["name"],
+                    "quarter_change": f"{change_pct:+.2f}%",
+                    "holdings_change": change_str,
+                }
+            )
         except Exception:
             continue
 
@@ -197,6 +203,7 @@ def _compute_north_flow_summary(df: pd.DataFrame) -> dict:
 
 
 # ── Report generation ──────────────────────────────────────────────────────────
+
 
 def generate_report() -> str:
     """Generate the quarterly report as a markdown string."""
@@ -235,7 +242,10 @@ def generate_report() -> str:
         lines.append("| 代码 | 名称 | 季度涨跌幅 | 持仓变化 |")
         lines.append("|------|------|-----------|---------|")
         for row in etf_perf[:10]:
-            lines.append(f"| {row['code']} | {row['name']} | {row['quarter_change']} | {row['holdings_change']} |")
+            lines.append(
+                f"| {row['code']} | {row['name']} | {row['quarter_change']} "
+                f"| {row['holdings_change']} |"
+            )
     else:
         lines.append("_暂无数据_")
     lines.append("")

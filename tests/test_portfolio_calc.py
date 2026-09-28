@@ -5,9 +5,9 @@ import pandas as pd
 import pytest
 
 from src.portfolio_calc import (
+    calc_beta,
     calc_contribution,
     calc_correlation,
-    calc_beta,
     calc_max_drawdown,
     calc_sharpe,
     calc_volatility,
@@ -53,10 +53,7 @@ class TestCalcContribution:
         for dt, group in result.groupby("date"):
             total = group["contribution"].sum()
             # portfolio return = weighted sum of asset returns
-            expected = sum(
-                weights[a] * daily_returns.loc[dt, a]
-                for a in group["asset"]
-            )
+            expected = sum(weights[a] * daily_returns.loc[dt, a] for a in group["asset"])
             assert pytest.approx(total, rel=1e-6) == expected
 
 

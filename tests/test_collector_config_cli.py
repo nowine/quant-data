@@ -21,8 +21,6 @@ from pathlib import Path
 
 import pytest
 
-import src.collector_daily as cd  # for _initialized reset helper
-
 
 @pytest.fixture(autouse=True)
 def _restore_config_defaults():
@@ -34,6 +32,7 @@ def _restore_config_defaults():
     defaults-only tests see the 1-entry stub JSON.
     """
     from src import config as config_mod
+
     saved = (
         list(config_mod.ETF_WATCH_LIST),
         list(config_mod.USER_HOLDINGS),
@@ -52,24 +51,23 @@ def _restore_config_defaults():
 
 def _write_minimal(path: Path) -> Path:
     """Write a JSON config that satisfies the schema."""
-    path.write_text(json.dumps({
-        "etf_watch_list": [
-            {"code": "510300", "name": "沪深300ETF", "index": "000300.SH"}
-        ],
-        "user_holdings": [
-            {"code": "159530", "name": "机器人ETF", "sector": "robot"}
-        ],
-        "index_watch_list": ["000300.SH"],
-        "sector_mapping": {
-            "robot": ["159530", "562500"]
-        },
-    }))
+    path.write_text(
+        json.dumps(
+            {
+                "etf_watch_list": [{"code": "510300", "name": "沪深300ETF", "index": "000300.SH"}],
+                "user_holdings": [{"code": "159530", "name": "机器人ETF", "sector": "robot"}],
+                "index_watch_list": ["000300.SH"],
+                "sector_mapping": {"robot": ["159530", "562500"]},
+            }
+        )
+    )
     return path
 
 
 def _reset_init_flag() -> None:
     """Allow init_config() to be called again after importlib.reload."""
     from src import config as config_mod
+
     config_mod._initialized = False
 
 
@@ -79,6 +77,7 @@ def _reload_collector(name: str):
 
 
 # ── Weekly ────────────────────────────────────────────────────────────────────
+
 
 class TestWeeklyConfigFlag:
     def test_missing_config_flag_prints_help(self, capsys, monkeypatch):
@@ -94,9 +93,7 @@ class TestWeeklyConfigFlag:
         cfg = _write_minimal(tmp_path / "cfg.json")
 
         # Stub run_weekly so main() exits fast (we only test init side-effect).
-        monkeypatch.setattr(sys, "argv", [
-            "collector_weekly.py", "--config", str(cfg)
-        ])
+        monkeypatch.setattr(sys, "argv", ["collector_weekly.py", "--config", str(cfg)])
         cw = _reload_collector("src.collector_weekly")
         _reset_init_flag()
         monkeypatch.setattr(cw, "today", lambda: datetime.date(2026, 5, 18))  # Monday
@@ -105,6 +102,7 @@ class TestWeeklyConfigFlag:
         cw.main()
 
         from src import config as config_mod
+
         assert config_mod.is_initialized()
         assert len(config_mod.USER_HOLDINGS) == 1
         assert config_mod.USER_HOLDINGS[0]["code"] == "159530"
@@ -112,9 +110,7 @@ class TestWeeklyConfigFlag:
     def test_bad_config_exits_nonzero(self, tmp_path, monkeypatch, capsys):
         bad = tmp_path / "bad.json"
         bad.write_text("{ not json")
-        monkeypatch.setattr(sys, "argv", [
-            "collector_weekly.py", "--config", str(bad)
-        ])
+        monkeypatch.setattr(sys, "argv", ["collector_weekly.py", "--config", str(bad)])
         _reload_collector("src.collector_weekly")
         _reset_init_flag()
 
@@ -126,6 +122,7 @@ class TestWeeklyConfigFlag:
 
 
 # ── Monthly ───────────────────────────────────────────────────────────────────
+
 
 class TestMonthlyConfigFlag:
     def test_missing_config_flag_prints_help(self, capsys, monkeypatch):
@@ -139,9 +136,7 @@ class TestMonthlyConfigFlag:
 
     def test_valid_config_loads_lists(self, tmp_path, monkeypatch):
         cfg = _write_minimal(tmp_path / "cfg.json")
-        monkeypatch.setattr(sys, "argv", [
-            "collector_monthly.py", "--config", str(cfg)
-        ])
+        monkeypatch.setattr(sys, "argv", ["collector_monthly.py", "--config", str(cfg)])
         cm = _reload_collector("src.collector_monthly")
         _reset_init_flag()
         monkeypatch.setattr(cm, "run_monthly", lambda: {"errors": []})
@@ -149,14 +144,13 @@ class TestMonthlyConfigFlag:
         cm.main()
 
         from src import config as config_mod
+
         assert config_mod.is_initialized()
         assert len(config_mod.ETF_WATCH_LIST) == 1
 
     def test_bad_config_exits_nonzero(self, tmp_path, monkeypatch, capsys):
         bad = tmp_path / "nope.json"
-        monkeypatch.setattr(sys, "argv", [
-            "collector_monthly.py", "--config", str(bad)
-        ])
+        monkeypatch.setattr(sys, "argv", ["collector_monthly.py", "--config", str(bad)])
         _reload_collector("src.collector_monthly")
         _reset_init_flag()
 
@@ -166,6 +160,7 @@ class TestMonthlyConfigFlag:
 
 
 # ── Quarterly ─────────────────────────────────────────────────────────────────
+
 
 class TestQuarterlyConfigFlag:
     def test_missing_config_flag_prints_help(self, capsys, monkeypatch):
@@ -179,9 +174,7 @@ class TestQuarterlyConfigFlag:
 
     def test_valid_config_loads_lists(self, tmp_path, monkeypatch):
         cfg = _write_minimal(tmp_path / "cfg.json")
-        monkeypatch.setattr(sys, "argv", [
-            "collector_quarterly.py", "--config", str(cfg)
-        ])
+        monkeypatch.setattr(sys, "argv", ["collector_quarterly.py", "--config", str(cfg)])
         cq = _reload_collector("src.collector_quarterly")
         _reset_init_flag()
         # Force-run-day so main() proceeds past the date guard
@@ -191,15 +184,14 @@ class TestQuarterlyConfigFlag:
         cq.main()
 
         from src import config as config_mod
+
         assert config_mod.is_initialized()
         assert len(config_mod.INDEX_WATCH_LIST) == 1
         assert "robot" in config_mod.SECTOR_MAPPING
 
     def test_bad_config_exits_nonzero(self, tmp_path, monkeypatch, capsys):
         bad = tmp_path / "nope.json"
-        monkeypatch.setattr(sys, "argv", [
-            "collector_quarterly.py", "--config", str(bad)
-        ])
+        monkeypatch.setattr(sys, "argv", ["collector_quarterly.py", "--config", str(bad)])
         _reload_collector("src.collector_quarterly")
         _reset_init_flag()
 

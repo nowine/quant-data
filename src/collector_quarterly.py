@@ -12,12 +12,14 @@ import sys
 import time
 from pathlib import Path
 
-from src import config, logger as logger_module
-from src.storage import save_csv, save_json
+from src import config
+from src import logger as logger_module
 from src.akshare_fund_client import get_holdings, get_index_info
-
+from src.collectors_common import classify_exception as _classify_exception
+from src.storage import save_csv, save_json
 
 # ── Clock stub ─────────────────────────────────────────────────────────────────
+
 
 def today() -> datetime.date:
     """Return today's date. Stubbed in tests."""
@@ -25,6 +27,7 @@ def today() -> datetime.date:
 
 
 # ── Date helpers ───────────────────────────────────────────────────────────────
+
 
 def is_quarterly_run_day() -> bool:
     """Return True if today is the 15th of a quarter-end month (Mar/Jun/Sep/Dec).
@@ -37,33 +40,8 @@ def is_quarterly_run_day() -> bool:
     return d.day == 15 and d.month in (3, 6, 9, 12)
 
 
-# ── Exception classification (Q27, 2026-08-23) ────────────────────────────
-
-# See collector_weekly.py for design rationale. Identical map to keep
-# classifier output consistent across all 4 collectors.
-_EXCEPTION_HINTS: dict[str, str] = {
-    "ChunkedEncodingError": (
-        "akshare 数据源连接中断/返回不完整（常见于周末/节假日源站未更新或返回空 payload）"
-    ),
-    "ConnectionError": "akshare 数据源连接失败（网络或源站不可达）",
-    "Timeout": "akshare 数据源调用超时（可考虑重试或查缓存）",
-    "KeyError": "akshare 返回结构变更，字段缺失（需升级 akshare 版本）",
-    "ValueError": "akshare 返回数据无法解析（参数不匹配或源数据格式变化）",
-    "HTTPError": "akshare 数据源返回 HTTP 错误（4xx/5xx）",
-}
-
-
-def _classify_exception(exc: BaseException) -> tuple[str, str]:
-    """Return (human-readable reason, exception class name)."""
-    exc_name = type(exc).__name__
-    for cls in type(exc).__mro__:
-        mapped = _EXCEPTION_HINTS.get(cls.__name__)
-        if mapped:
-            return mapped, exc_name
-    return f"akshare 调用失败（{exc_name}）", exc_name
-
-
 # ── File paths ─────────────────────────────────────────────────────────────────
+
 
 def _quarterly_dir() -> Path:
     d = Path(config.DATA_DIR) / "quarterly"
@@ -83,6 +61,7 @@ def _index_valuation_path() -> Path:
 
 # ── Collectors ─────────────────────────────────────────────────────────────────
 
+
 def _collect_holdings(fund: dict) -> dict:
     """Fetch and save fund holdings (stocks + bonds) for one fund."""
     start = time.time()
@@ -95,6 +74,7 @@ def _collect_holdings(fund: dict) -> dict:
         records = data.get("datas", [])
         if records:
             import pandas as pd
+
             df = pd.DataFrame(records)
             save_csv(df, str(path))
         elapsed = time.time() - start
@@ -171,6 +151,7 @@ def _collect_index_valuation() -> dict:
 
 # ── Main run ────────────────────────────────────────────────────────────────────
 
+
 def run_quarterly() -> dict:
     """Collect all quarterly data.
 
@@ -195,15 +176,20 @@ def run_quarterly() -> dict:
         status="summary",
         rows=len(results),
         elapsed_sec=0,
-        message=f"quarterly: {len(holdings_results)} holdings, {len(config.INDEX_WATCH_LIST)} indices",
+        message=(
+        f"quarterly: {len(holdings_results)} holdings, "
+        f"{len(config.INDEX_WATCH_LIST)} indices"
+    ),
     )
     return results
 
 
 # ── CLI ────────────────────────────────────────────────────────────────────────
 
+
 def main() -> None:
     import argparse
+
     parser = argparse.ArgumentParser(description="Quarterly ETF data collector")
     parser.add_argument(
         "--config",
@@ -219,6 +205,7 @@ def main() -> None:
     # Load externalized config FIRST (ADR-004). Fail-fast on any error.
     from src.config import init_config
     from src.config_loader import ConfigLoadError
+
     try:
         init_config(args.config)
     except ConfigLoadError as e:
@@ -237,8 +224,7 @@ def main() -> None:
     result = run_quarterly()
 
     success = sum(
-        1 for v in result.values()
-        if isinstance(v, dict) and v.get("status") == "success"
+        1 for v in result.values() if isinstance(v, dict) and v.get("status") == "success"
     )
     total = len(result)
     print(f"Done: {success}/{total} task groups succeeded.")

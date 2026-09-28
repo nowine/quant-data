@@ -27,11 +27,11 @@ from __future__ import annotations
 import copy
 import json
 from pathlib import Path
-from typing import Any, Union
+from typing import Any
 
 from src.config_schema import ConfigSchemaError, validate_config
 
-PathLike = Union[str, Path]
+PathLike = str | Path
 
 # Four required output keys (in stable order). Missing top-level keys in the
 # JSON file default to these empties so downstream consumers always see the
@@ -138,8 +138,6 @@ def load_config(path: PathLike) -> dict[str, Any]:
         validate_config(data)
     except ConfigSchemaError as e:
         # Re-raise with file path context so 皮皮 knows which file to fix.
-        raise ConfigLoadError(
-            f"etf_config.json failed schema validation: {p}\n{e}"
-        ) from e
+        raise ConfigLoadError(f"etf_config.json failed schema validation: {p}\n{e}") from e
 
     return _fill_defaults(data)

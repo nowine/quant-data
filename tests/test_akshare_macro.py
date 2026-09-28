@@ -8,7 +8,6 @@ caching wrapper returns a DataFrame.
 import importlib
 
 import pandas as pd
-import pytest
 
 
 def test_get_pmi_returns_dataframe(monkeypatch):
@@ -16,9 +15,7 @@ def test_get_pmi_returns_dataframe(monkeypatch):
     from src import akshare_client
 
     importlib.reload(akshare_client)
-    monkeypatch.setattr(
-        akshare_client.ak, "macro_china_pmi", lambda: pd.DataFrame({"PMI": [51.5]})
-    )
+    monkeypatch.setattr(akshare_client.ak, "macro_china_pmi", lambda: pd.DataFrame({"PMI": [51.5]}))
     result = akshare_client.get_pmi()
     assert isinstance(result, pd.DataFrame)
 

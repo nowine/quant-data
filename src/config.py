@@ -47,11 +47,14 @@ without reading code.
 """
 
 import os
+from pathlib import Path
 
 # Load .env for cron/isolated environments where system env vars may be absent
 try:
-    from dotenv import load_dotenv
     from pathlib import Path as _Path
+
+    from dotenv import load_dotenv
+
     _env_file = _Path(__file__).resolve().parent.parent / ".env"
     if _env_file.exists():
         load_dotenv(_env_file, override=True)
@@ -165,18 +168,17 @@ SECTOR_MAPPING = {
 #
 # Resolution order (evaluated at module import time):
 #   1. Environment variable QUANT_DATA_DIR, if set and non-empty.
-#   2. Hard-coded default (host absolute path).
+#   2. Repo-relative default: <repo>/data (no machine-specific absolute path).
 #
-# Why env-override matters: the production collector runs inside a podman
-# container (commit 848b7f5). Rootless podman isolates the host's `/root`
-# from the container's mount namespace, so the host absolute path below is
-# NOT visible inside the container. docker-compose.yml binds the host data
-# dir to `/data` and sets `QUANT_DATA_DIR=/data/data`, so the collector
-# resolves to the container-visible path when run inside podman.
+# Why env-override matters: the production collector may run inside a podman
+# container (commit 848b7f5). docker-compose.yml binds the host data dir to
+# `/data` and sets `QUANT_DATA_DIR=/data/data`, so the collector resolves to
+# the container-visible path when run inside podman.
 #
-# Dev/test paths and direct host execution still use the host default
-# (no env set → legacy behavior preserved).
-_DATA_DIR_DEFAULT = "/root/secureshare/files/ETF轮动分析框架/data"
+# Deployment note (2026-09-23): current production uses git tag + worktree
+# (stable worktree at a fixed path, cron points there); containers remain
+# supported via QUANT_DATA_DIR. Both read the same env contract.
+_DATA_DIR_DEFAULT = str(Path(__file__).resolve().parent.parent / "data")
 DATA_DIR = os.getenv("QUANT_DATA_DIR") or _DATA_DIR_DEFAULT
 
 # =============================================================================
@@ -187,25 +189,25 @@ SLOW_API_TIMEOUT = 45  # seconds
 # Cache TTL — 数据类型对应的缓存有效期（小时）
 # =============================================================================
 CACHE_TTL = {
-    "etf_snapshot": 24,         # 当日
-    "macro_north_flow": 168,      # 7天
-    "etf_scale": 168,             # 7天
-    "margin": 24,                # 1天
-    "macro_pmi": 720,             # 30天
-    "macro_cpi": 720,             # 30天
-    "macro_ppi": 720,             # 30天
-    "macro_m2": 720,              # 30天
-    "macro_lpr": 168,             # 7天
-    "macro_shrzgm": 720,          # 30天
-    "macro_gdp": 2160,            # 90天
-    "macro_industrial": 720,      # 30天
-    "nav_history": 24,            # 当日
-    "index_valuation": 168,       # 7天
-    "holdings": 720,             # 30天
-    "manager_info": 720,          # 30天
-    "gold_info": 168,             # 7天
-    "strategy": 2160,             # 90天
-    "industry_alloc": 2160,       # 90天
+    "etf_snapshot": 24,  # 当日
+    "macro_north_flow": 168,  # 7天
+    "etf_scale": 168,  # 7天
+    "margin": 24,  # 1天
+    "macro_pmi": 720,  # 30天
+    "macro_cpi": 720,  # 30天
+    "macro_ppi": 720,  # 30天
+    "macro_m2": 720,  # 30天
+    "macro_lpr": 168,  # 7天
+    "macro_shrzgm": 720,  # 30天
+    "macro_gdp": 2160,  # 90天
+    "macro_industrial": 720,  # 30天
+    "nav_history": 24,  # 当日
+    "index_valuation": 168,  # 7天
+    "holdings": 720,  # 30天
+    "manager_info": 720,  # 30天
+    "gold_info": 168,  # 7天
+    "strategy": 2160,  # 90天
+    "industry_alloc": 2160,  # 90天
 }
 
 # =============================================================================
@@ -276,7 +278,7 @@ def init_config(path) -> None:
         )
 
     from src.config_loader import load_config  # lazy: keeps this module
-                                              # importable without jsonschema
+    # importable without jsonschema
 
     loaded = load_config(path)
 
@@ -290,6 +292,7 @@ def init_config(path) -> None:
     # Direct module-dict mutation ensures `from src.config import X` calls
     # in OTHER modules that fire after this point also see the new value.
     import sys
+
     this_module = sys.modules[__name__]
     this_module.ETF_WATCH_LIST = ETF_WATCH_LIST
     this_module.USER_HOLDINGS = USER_HOLDINGS

@@ -1,0 +1,10 @@
+# Ruff configuration for quant-data
+# 固化规则依据：
+# - BLE001: blind-except 是本项目有意的 best-effort 语义（见 ADR-003）
+# - DTZ011/DTZ005: date.today()/datetime.now() 在测试中大量使用且是设计如此
+#   （collector 有 today() stub 接缝）
+line-length = 100
+
+[lint]
+select = ["E", "F", "I", "W", "UP", "B"]
+ignore = ["BLE001", "DTZ011", "DTZ005"]

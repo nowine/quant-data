@@ -21,22 +21,25 @@ import pytest
 
 from src import akshare_fund_client as af
 
-
 # ── Signature parity ──────────────────────────────────────────────────────────
+
 
 class TestSignatureParity:
     """All ttfund_client public names must exist with matching signatures."""
 
-    @pytest.mark.parametrize("name", [
-        "get_nav_history",
-        "get_gold_info",
-        "get_index_info",
-        "get_holdings",
-        "search_funds",
-        "get_manager_info",
-        "get_strategy",
-        "get_fund_info",
-    ])
+    @pytest.mark.parametrize(
+        "name",
+        [
+            "get_nav_history",
+            "get_gold_info",
+            "get_index_info",
+            "get_holdings",
+            "search_funds",
+            "get_manager_info",
+            "get_strategy",
+            "get_fund_info",
+        ],
+    )
     def test_public_api_exists(self, name):
         assert hasattr(af, name), f"missing public function: {name}"
         assert callable(getattr(af, name)), f"{name} must be callable"
@@ -50,8 +53,8 @@ class TestSignatureParity:
 
 # ── get_nav_history: real wrap shape ─────────────────────────────────────────
 
-class TestGetNavHistory:
 
+class TestGetNavHistory:
     def _mock_ak(self, df: pd.DataFrame):
         """Return a MagicMock that exposes akshare as `af._get_ak()`."""
         mock_ak = MagicMock()
@@ -61,11 +64,13 @@ class TestGetNavHistory:
     def test_wraps_akshare_df_into_ttfund_shape(self):
         """akshare columns (净值日期/单位净值/日增长率) → DWJZ/FSRQ/JZZZL/LJJZ."""
         # akshare returns OLDEST-first; shim reverses to newest-first.
-        df = pd.DataFrame({
-            "净值日期": ["2026-08-18", "2026-08-19"],
-            "单位净值": ["1.230", "1.234"],
-            "日增长率": ["-0.15", "0.32"],
-        })
+        df = pd.DataFrame(
+            {
+                "净值日期": ["2026-08-18", "2026-08-19"],
+                "单位净值": ["1.230", "1.234"],
+                "日增长率": ["-0.15", "0.32"],
+            }
+        )
         with patch.object(af, "_get_ak", return_value=self._mock_ak(df)):
             result = af.get_nav_history("510300", "y")
 
@@ -87,11 +92,13 @@ class TestGetNavHistory:
     def test_newest_first_enforced(self):
         """akshare returns oldest-first; wrapper must reverse to newest-first
         so callers' items[0] is the latest NAV (matches ttfund contract)."""
-        df = pd.DataFrame({
-            "净值日期": ["2024-01-01", "2024-01-02", "2024-01-03"],
-            "单位净值": ["1.00", "1.05", "1.10"],
-            "日增长率": ["0.0", "5.0", "4.76"],
-        })
+        df = pd.DataFrame(
+            {
+                "净值日期": ["2024-01-01", "2024-01-02", "2024-01-03"],
+                "单位净值": ["1.00", "1.05", "1.10"],
+                "日增长率": ["0.0", "5.0", "4.76"],
+            }
+        )
         with patch.object(af, "_get_ak", return_value=self._mock_ak(df)):
             items = af.get_nav_history("510300", "y")["data"]["nav_history"]["items"]
         assert [it["FSRQ"] for it in items] == ["2024-01-03", "2024-01-02", "2024-01-01"]
@@ -138,8 +145,8 @@ class TestGetNavHistory:
 
 # ── Stubs (Phase 2 backlog) ──────────────────────────────────────────────────
 
-class TestStubs:
 
+class TestStubs:
     def test_get_gold_info_returns_empty(self, caplog):
         with caplog.at_level("WARNING"):
             result = af.get_gold_info("all")
@@ -193,15 +200,17 @@ class TestStubs:
 
 # ── get_fund_info ────────────────────────────────────────────────────────────
 
-class TestGetFundInfo:
 
+class TestGetFundInfo:
     def test_parses_xq_basic_info_dataframe(self):
         """akshare returns 2-col df (item / value); wrapper pivots to dict."""
-        df = pd.DataFrame([
-            ["基金全称", "华夏成长混合"],
-            ["基金代码", "000001"],
-            ["基金类型", "混合型"],
-        ])
+        df = pd.DataFrame(
+            [
+                ["基金全称", "华夏成长混合"],
+                ["基金代码", "000001"],
+                ["基金类型", "混合型"],
+            ]
+        )
         mock_ak = MagicMock()
         mock_ak.fund_individual_basic_info_xq.return_value = df
         with patch.object(af, "_get_ak", return_value=mock_ak):
@@ -228,13 +237,12 @@ class TestGetFundInfo:
 
 # ── Module-level: lazy akshare loader ────────────────────────────────────────
 
-class TestLazyAkshareLoader:
 
+class TestLazyAkshareLoader:
     def test_akshare_missing_raises_runtime_error(self):
         """If akshare not installed, calling any data func raises clearly."""
         with patch.dict("sys.modules", {"akshare": None}):
             # Simulate akshare import failing
-            import importlib
             with patch.object(af, "_ak", None):
                 with patch("builtins.__import__", side_effect=ImportError("no akshare")):
                     with pytest.raises(RuntimeError, match="akshare is required"):

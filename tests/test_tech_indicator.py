@@ -5,14 +5,14 @@ import pandas as pd
 import pytest
 
 from src.tech_indicator import (
+    calc_atr,
+    calc_bollinger,
     calc_ma,
     calc_ma_deviation,
-    calc_atr,
-    calc_rsi,
-    calc_volume_ratio,
-    calc_bollinger,
     calc_macd,
     calc_premium_rate,
+    calc_rsi,
+    calc_volume_ratio,
 )
 
 

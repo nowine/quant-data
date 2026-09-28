@@ -16,70 +16,19 @@ from pathlib import Path
 
 import pandas as pd
 
-from src import config, logger as logger_module
-from src.portfolio_calc import calc_contribution, calc_correlation, calc_beta
+from src import config
+from src import logger as logger_module
 from src.akshare_client import (
     get_etf_scale,
-    get_north_flow,
     get_industry_alloc,
+    get_north_flow,
 )
-from src.portfolio_calc import calc_contribution, calc_correlation, calc_beta
-from src.storage import save_csv, exists_today
-
-
-# ── Error registry ─────────────────────────────────────────────────────────────
-
-
-def _record_error(errors: list[str], name: str, detail: str, suggestion: str) -> None:
-    """Append a structured error to the shared errors list and log it."""
-    msg = f"{name}: {detail}; suggestion: {suggestion}"
-    errors.append(msg)
-    logger_module.log_collect(
-        task=name,
-        source=name.split("_")[0],
-        status="error",
-        rows=0,
-        elapsed_sec=0,
-        message=msg,
-    )
-
-
-# ── Exception classification (Q27, 2026-08-23) ────────────────────────────
-
-# Map of exception class name → human-readable reason hint for the caller.
-# The collector surfaces this as `status=error, reason=..., exception_type=...`
-# in the per-task result dict, so the caller (皮皮 agent) can decide whether to
-# use cache, mark the report degraded, or skip the section.
-_EXCEPTION_HINTS: dict[str, str] = {
-    "ChunkedEncodingError": (
-        "akshare 数据源连接中断/返回不完整（常见于周末/节假日源站未更新或返回空 payload）"
-    ),
-    "ConnectionError": "akshare 数据源连接失败（网络或源站不可达）",
-    "Timeout": "akshare 数据源调用超时（可考虑重试或查缓存）",
-    "KeyError": "akshare 返回结构变更，字段缺失（需升级 akshare 版本）",
-    "ValueError": "akshare 返回数据无法解析（参数不匹配或源数据格式变化）",
-    "HTTPError": "akshare 数据源返回 HTTP 错误（4xx/5xx）",
-}
-
-
-def _classify_exception(exc: BaseException) -> tuple[str, str]:
-    """Return (human-readable reason, exception class name) for an akshare failure.
-
-    Falls back to (generic message, class name) for unmapped exceptions. The
-    pair is added to the per-task status dict so the caller can decide a
-    follow-up (use cache / mark degraded / retry later).
-    """
-    exc_name = type(exc).__name__
-    # Walk the MRO so subclass exceptions (e.g. ReadTimeout ⊂ Timeout) still
-    # resolve to a sensible hint via their nearest ancestor in our map.
-    for cls in type(exc).__mro__:
-        mapped = _EXCEPTION_HINTS.get(cls.__name__)
-        if mapped:
-            return mapped, exc_name
-    return f"akshare 调用失败（{exc_name}）", exc_name
-
+from src.collectors_common import classify_exception as _classify_exception
+from src.collectors_common import record_error as _record_error
+from src.storage import exists_today, save_csv
 
 # ── Clock stub ─────────────────────────────────────────────────────────────────
+
 
 def today() -> datetime.date:
     """Return today's date. Stubbed in tests."""
@@ -87,6 +36,7 @@ def today() -> datetime.date:
 
 
 # ── File paths ─────────────────────────────────────────────────────────────────
+
 
 def _weekly_dir() -> Path:
     """Return the weekly data directory."""
@@ -119,6 +69,7 @@ def _portfolio_weekly_path() -> Path:
 
 
 # ── Helpers ─────────────────────────────────────────────────────────────────────
+
 
 def _load_daily_sector_ranks(days: int = 5) -> list[pd.DataFrame]:
     """Load the most recent N daily sector_rank CSV files, sorted oldest→newest.
@@ -165,11 +116,15 @@ def _compute_sector_rank_change(recent_dfs: list[pd.DataFrame]) -> pd.DataFrame:
     # Build ranking (assume first col is sector name)
     last_ranked = last_week.reset_index(drop=True).reset_index()
     last_ranked.columns = [last_week.columns[0], f"{last_week.columns[0]}_rank"]
-    last_ranked = last_ranked.rename(columns={last_ranked.columns[0]: "sector", f"{last_week.columns[0]}_rank": "last_week_rank"})
+    last_ranked = last_ranked.rename(
+        columns={last_ranked.columns[0]: "sector", f"{last_week.columns[0]}_rank": "last_week_rank"}
+    )
 
     this_ranked = this_week.reset_index(drop=True).reset_index()
     this_ranked.columns = [this_week.columns[0], f"{this_week.columns[0]}_rank"]
-    this_ranked = this_ranked.rename(columns={this_ranked.columns[0]: "sector", f"{this_week.columns[0]}_rank": "this_week_rank"})
+    this_ranked = this_ranked.rename(
+        columns={this_ranked.columns[0]: "sector", f"{this_week.columns[0]}_rank": "this_week_rank"}
+    )
 
     merged = this_ranked.merge(last_ranked, on="sector", how="left")
     merged["rank_change"] = merged["last_week_rank"] - merged["this_week_rank"]
@@ -191,13 +146,19 @@ def _run_portfolio_weekly() -> pd.DataFrame:
     # For now, just compute week-over-week change as proxy
     change_rows = []
     for df in sector_dfs:
-        change_rows.append(df[["sector", "avg_change_pct"]].rename(columns={"avg_change_pct": f"change_{df['_source_file'].split('_')[2]}"}))
+        change_rows.append(
+            df[["sector", "avg_change_pct"]].rename(
+                columns={"avg_change_pct": f"change_{df['_source_file'].split('_')[2]}"}
+            )
+        )
 
     # Aggregate portfolio contribution placeholder
     # Real implementation would load NAV history and compute actual returns
-    return pd.DataFrame({
-        "note": ["portfolio weekly metrics require NAV history - use LLM for full analysis"],
-    })
+    return pd.DataFrame(
+        {
+            "note": ["portfolio weekly metrics require NAV history - use LLM for full analysis"],
+        }
+    )
 
 
 def _collect_csv(
@@ -259,6 +220,7 @@ def _collect_csv(
 
 # ── Core collector ──────────────────────────────────────────────────────────────
 
+
 def run_weekly() -> dict[str, dict]:
     """Collect weekly data: ETF scale, north flow, industry allocation.
 
@@ -308,7 +270,10 @@ def run_weekly() -> dict[str, dict]:
             lambda: _compute_sector_rank_change(recent_dfs),
             _sector_rank_change_path(),
             errors,
-            suggestion="sector_rank_change requires daily sector_rank data; run daily collector first",
+            suggestion=(
+                "sector_rank_change requires daily sector_rank data; "
+                "run daily collector first"
+            ),
         )
 
     # 5. 组合周度指标 — 贡献度/相关性/Beta（降级，依赖完整 NAV 历史）
@@ -317,7 +282,10 @@ def run_weekly() -> dict[str, dict]:
         lambda: _run_portfolio_weekly(),
         _portfolio_weekly_path(),
         errors,
-        suggestion="portfolio weekly metrics require NAV history returns; use LLM for full analysis",
+        suggestion=(
+            "portfolio weekly metrics require NAV history returns; "
+            "use LLM for full analysis"
+        ),
     )
 
     results["errors"] = errors
@@ -326,8 +294,10 @@ def run_weekly() -> dict[str, dict]:
 
 # ── CLI ───────────────────────────────────────────────────────────────────────
 
+
 def main() -> None:
     import argparse
+
     parser = argparse.ArgumentParser(description="Weekly ETF data collector")
     parser.add_argument(
         "--config",
@@ -343,6 +313,7 @@ def main() -> None:
     # Load externalized config FIRST (ADR-004). Fail-fast on any error.
     from src.config import init_config
     from src.config_loader import ConfigLoadError
+
     try:
         init_config(args.config)
     except ConfigLoadError as e:
@@ -358,8 +329,9 @@ def main() -> None:
 
     print("Running weekly collector...")
     result = run_weekly()
-    success = sum(1 for v in result.values()
-                  if isinstance(v, dict) and v.get("status") == "success")
+    success = sum(
+        1 for v in result.values() if isinstance(v, dict) and v.get("status") == "success"
+    )
     total = len(result)
     print(f"Done: {success}/{total} tasks succeeded.")
 

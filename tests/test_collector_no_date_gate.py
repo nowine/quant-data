@@ -23,13 +23,11 @@ cohesion is preserved. It tests the `_main()` CLI entry point boundary only
 mock coverage in test_collector_*.py).
 """
 
-import os
-import sys
-import subprocess
 import importlib
-from pathlib import Path
-from datetime import date
+import sys
 from unittest.mock import patch
+
+import pytest
 
 
 class TestDateGateRemoval:
@@ -42,7 +40,30 @@ class TestDateGateRemoval:
         twice' RuntimeError from src/config.py (intentional guard, not a bug).
         """
         import src.config as cfg
+
         importlib.reload(cfg)
+
+    def _write_test_config(self, tmp_path) -> str:
+        """Write a minimal valid etf_config.json into tmp_path and return its path.
+
+        Replaces the old hardcoded /root/secureshare/... path (unwritable here).
+        Empty lists validate per ADR-004 (only per-entry fields are strict).
+        """
+        import json
+
+        config_file = tmp_path / "etf_config.json"
+        config_file.write_text(
+            json.dumps(
+                {
+                    "etf_watch_list": [],
+                    "user_holdings": [],
+                    "index_watch_list": [],
+                    "sector_mapping": {},
+                }
+            ),
+            encoding="utf-8",
+        )
+        return str(config_file)
 
     def test_weekly_runs_on_non_monday(self, tmp_path):
         """Weekly collector must NOT early-exit on non-Monday (issue 1, L310-311).
@@ -51,22 +72,29 @@ class TestDateGateRemoval:
         (2026-08-23 was a Sunday) and verify the collector runs instead of
         sys.exit(0) with the old "not Monday" message.
         """
-        from src import collector_weekly
         from datetime import date as _date
+
+        from src import collector_weekly
 
         # 2026-08-23 is a Sunday
         sunday = _date(2026, 8, 23)
         with patch.object(collector_weekly, "today", return_value=sunday):
             # _main reads sys.argv — feed minimal args to hit the gate
-            with patch.object(sys, "argv", [
-                "collector_weekly.py",
-                "--config", "/root/secureshare/files/ETF轮动分析框架/config/etf_config.json",
-            ]):
+            with patch.object(
+                sys,
+                "argv",
+                [
+                    "collector_weekly.py",
+                    "--config",
+                    self._write_test_config(tmp_path),
+                ],
+            ):
                 # Should NOT print "not Monday — weekly collector should run..."
                 # Should call run_weekly() instead. We mock run_weekly to avoid
                 # hitting akshare and to detect call.
                 with patch.object(
-                    collector_weekly, "run_weekly",
+                    collector_weekly,
+                    "run_weekly",
                     return_value={"etf_scale": {"status": "success", "rows": 5}},
                 ) as mock_rw:
                     with patch("builtins.print"):  # suppress stdout noise
@@ -79,27 +107,32 @@ class TestDateGateRemoval:
                             if e.code == 0 and not mock_rw.called:
                                 raise AssertionError(
                                     "Weekly collector still early-exits on non-Monday"
-                                )
-                    assert mock_rw.called, (
-                        "Weekly collector should call run_weekly() on non-Monday"
-                    )
+                                ) from e
+                    assert mock_rw.called, "Weekly collector should call run_weekly() on non-Monday"
 
-    def test_quarterly_runs_on_non_quarter_day(self):
+    def test_quarterly_runs_on_non_quarter_day(self, tmp_path):
         """Quarterly collector must NOT early-exit on non-quarter day (issue 2, L185).
 
         2026-08-23 is August — definitely not a quarterly run day.
         """
-        from src import collector_quarterly
         from datetime import date as _date
+
+        from src import collector_quarterly
 
         non_quarter = _date(2026, 8, 23)
         with patch.object(collector_quarterly, "today", return_value=non_quarter):
-            with patch.object(sys, "argv", [
-                "collector_quarterly.py",
-                "--config", "/root/secureshare/files/ETF轮动分析框架/config/etf_config.json",
-            ]):
+            with patch.object(
+                sys,
+                "argv",
+                [
+                    "collector_quarterly.py",
+                    "--config",
+                    self._write_test_config(tmp_path),
+                ],
+            ):
                 with patch.object(
-                    collector_quarterly, "run_quarterly",
+                    collector_quarterly,
+                    "run_quarterly",
                     return_value={"fund_holdings": {"status": "success", "rows": 3}},
                 ) as mock_rq:
                     with patch("builtins.print"):
@@ -109,35 +142,44 @@ class TestDateGateRemoval:
                             if e.code == 0 and not mock_rq.called:
                                 raise AssertionError(
                                     "Quarterly collector still early-exits on non-quarter day"
-                                )
+                                ) from e
                     assert mock_rq.called, (
                         "Quarterly collector should call run_quarterly() on non-quarter day"
                     )
 
-    def test_daily_still_skips_on_weekend(self):
+    def test_daily_still_skips_on_weekend(self, tmp_path):
         """Daily collector MUST still early-exit on weekend (Q26 preserved).
 
         2026-08-23 is a Sunday — daily should print 'not a trading day' and exit 0.
         This locks the current behavior so we don't accidentally drift into the
         'collectors never early-exit' interpretation on daily.
         """
-        from src import collector_daily
         from datetime import date as _date
+
+        from src import collector_daily
 
         sunday = _date(2026, 8, 23)
         with patch.object(collector_daily, "today", return_value=sunday):
-            with patch.object(sys, "argv", [
-                "collector_daily.py",
-                "--config", "/root/secureshare/files/ETF轮动分析框架/config/etf_config.json",
-                "--mode", "morning",
-            ]):
+            with patch.object(
+                sys,
+                "argv",
+                [
+                    "collector_daily.py",
+                    "--config",
+                    self._write_test_config(tmp_path),
+                    "--mode",
+                    "morning",
+                ],
+            ):
                 # We expect SystemExit(0) BEFORE any run_*_mode() call.
                 with patch.object(
-                    collector_daily, "run_morning_mode",
+                    collector_daily,
+                    "run_morning_mode",
                     return_value={"task_a": {"status": "success"}},
                 ) as mock_rmm:
                     with patch.object(
-                        collector_daily, "run_close_mode",
+                        collector_daily,
+                        "run_close_mode",
                         return_value={"task_b": {"status": "success"}},
                     ) as mock_rcm:
                         with patch("builtins.print"):
@@ -158,11 +200,14 @@ class TestReasonOnError:
     """akshare failures should return status='error' with reason + exception_type (Q27)."""
 
     def test_collect_csv_returns_reason_on_chunked_encoding_error(self, tmp_path):
-        """_collect_csv must catch ChunkedEncodingError (akshare Sunday fail) and
-        return dict with status='error', reason=human-readable, exception_type='ChunkedEncodingError'.
+        """_collect_csv must catch ChunkedEncodingError (akshare Sunday fail).
+
+        Returns dict with status='error', reason=human-readable,
+        exception_type='ChunkedEncodingError'.
         """
-        from src import collector_weekly
         from requests.exceptions import ChunkedEncodingError
+
+        from src import collector_weekly
 
         # Build a mock filepath that doesn't exist yet (so cache-hit branch skipped)
         filepath = tmp_path / "etf_scale_test.csv"
@@ -192,7 +237,3 @@ class TestReasonOnError:
             keyword in result["reason"]
             for keyword in ("数据源", "周日", "节假日", "连接中断", "不完整")
         ), f"reason should hint at source/weekend, got: {result['reason']}"
-
-
-# Need pytest for raises — import at top for the daily test
-import pytest

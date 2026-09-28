@@ -1,5 +1,3 @@
-import os
-import tempfile
 from datetime import date
 
 
@@ -7,7 +5,10 @@ def test_log_collect_writes_csv(tmp_path, monkeypatch):
     # Patch DATA_DIR on the config module directly (env var doesn't work because
     # src.config is already loaded with the real path at import time)
     import importlib
-    from src import config, logger as logger_module
+
+    from src import config
+    from src import logger as logger_module
+
     importlib.reload(config)
     monkeypatch.setattr(config, "DATA_DIR", str(tmp_path))
     importlib.reload(logger_module)
@@ -26,6 +27,7 @@ def test_log_collect_writes_csv(tmp_path, monkeypatch):
 
 def test_run_id_is_unique():
     from src.logger import get_run_id
+
     rid1 = get_run_id()
     rid2 = get_run_id()
     assert rid1 != rid2
@@ -34,6 +36,7 @@ def test_run_id_is_unique():
 
 def test_run_id_format():
     from src.logger import get_run_id
+
     rid = get_run_id()
     assert len(rid) > 20
     assert rid.isalnum() or "-" in rid

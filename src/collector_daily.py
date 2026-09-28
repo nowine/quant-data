@@ -11,43 +11,37 @@ import sys
 import time
 from pathlib import Path
 
-
 import pandas as pd
 
-from src import config, logger as logger_module
+from src import config
+from src import logger as logger_module
 from src.akshare_client import (
-    get_etf_snapshot,
     get_etf_history,
+    get_etf_snapshot,
     get_margin_sh,
     get_north_flow,
     get_us_stock_index,
 )
-from src.akshare_fund_client import get_nav_history, get_gold_info, get_index_info
-from src.storage import save_csv, save_json, exists_today, load_csv
+from src.akshare_fund_client import get_gold_info, get_index_info, get_nav_history
+from src.collectors_common import classify_exception as _classify_exception
+from src.collectors_common import record_error as _record_error
+from src.extra_holdings import (
+    build_extra_holdings_set,
+    parse_extra_holdings_arg,
+)
+from src.storage import exists_today, load_csv, save_csv, save_json
 from src.tech_indicator import (
-    calc_ma,
-    calc_rsi,
     calc_atr,
-    calc_volume_ratio,
     calc_bollinger,
+    calc_ma,
     calc_macd,
     calc_premium_rate,
+    calc_rsi,
+    calc_volume_ratio,
 )
-from src.extra_holdings import (
-    parse_extra_holdings_arg,
-    build_extra_holdings_set,
-)
-from src.portfolio_calc import (
-    calc_sharpe,
-    calc_volatility,
-    calc_max_drawdown,
-    calc_beta,
-    calc_correlation,
-    calc_contribution,
-)
-
 
 # ── Clock stub ─────────────────────────────────────────────────────────────────
+
 
 def today() -> datetime.date:
     """Return today's date. Stubbed in tests."""
@@ -56,12 +50,14 @@ def today() -> datetime.date:
 
 # ── Trading day check ──────────────────────────────────────────────────────────
 
+
 def is_trading_day() -> bool:
     """Return True if today is a weekday (Mon-Fri)."""
     return today().weekday() < 5
 
 
 # ── File paths ─────────────────────────────────────────────────────────────────
+
 
 def _daily_dir() -> Path:
     """Return the daily data directory."""
@@ -114,54 +110,8 @@ def _tech_indicator_path(code: str) -> Path:
     return _daily_dir() / f"tech_indicator_{code}_{today()}.csv"
 
 
-# ── Error registry ─────────────────────────────────────────────────────────────
-#
-# Structured error list passed through the call stack so the agent always
-# knows which data sources failed and what to do about it.
-# Each entry format: "{task_name}: {detail}; suggestion: {action}"
-
-
-def _record_error(errors: list[str], name: str, detail: str, suggestion: str) -> None:
-    """Append a structured error to the shared errors list and log it."""
-    msg = f"{name}: {detail}; suggestion: {suggestion}"
-    errors.append(msg)
-    logger_module.log_collect(
-        task=name,
-        source=name.split("_")[0],
-        status="error",
-        rows=0,
-        elapsed_sec=0,
-        message=msg,
-    )
-
-
-# ── Exception classification (Q27, 2026-08-23) ────────────────────────────
-
-# See collector_weekly.py for design rationale. Identical map to keep
-# classifier output consistent across all 4 collectors.
-_EXCEPTION_HINTS: dict[str, str] = {
-    "ChunkedEncodingError": (
-        "akshare 数据源连接中断/返回不完整（常见于周末/节假日源站未更新或返回空 payload）"
-    ),
-    "ConnectionError": "akshare 数据源连接失败（网络或源站不可达）",
-    "Timeout": "akshare 数据源调用超时（可考虑重试或查缓存）",
-    "KeyError": "akshare 返回结构变更，字段缺失（需升级 akshare 版本）",
-    "ValueError": "akshare 返回数据无法解析（参数不匹配或源数据格式变化）",
-    "HTTPError": "akshare 数据源返回 HTTP 错误（4xx/5xx）",
-}
-
-
-def _classify_exception(exc: BaseException) -> tuple[str, str]:
-    """Return (human-readable reason, exception class name)."""
-    exc_name = type(exc).__name__
-    for cls in type(exc).__mro__:
-        mapped = _EXCEPTION_HINTS.get(cls.__name__)
-        if mapped:
-            return mapped, exc_name
-    return f"akshare 调用失败（{exc_name}）", exc_name
-
-
 # ── Helpers ───────────────────────────────────────────────────────────────────
+
 
 def _collect_csv(
     name: str,
@@ -301,7 +251,6 @@ def _run_premium_rate_for_holdings(holders: list[dict]) -> pd.DataFrame:
     If yesterday's snapshot is missing (e.g. morning mode run without prior close),
     logs a warning and returns an empty DataFrame.
     """
-    from src.tech_indicator import calc_premium_rate
     from src.storage import load_csv
 
     rows = []
@@ -318,7 +267,10 @@ def _run_premium_rate_for_holdings(holders: list[dict]) -> pd.DataFrame:
             status="error",
             rows=0,
             elapsed_sec=0,
-            message=f"Yesterday's snapshot not found ({snapshot_path}). Run close mode first to collect ETF snapshot before morning mode.",
+            message=(
+                f"Yesterday's snapshot not found ({snapshot_path}). "
+                "Run close mode first to collect ETF snapshot before morning mode."
+            ),
         )
         return pd.DataFrame()
 
@@ -340,15 +292,17 @@ def _run_premium_rate_for_holdings(holders: list[dict]) -> pd.DataFrame:
                 continue
             latest_nav = float(items[0]["DWJZ"])
             premium = calc_premium_rate(snapshot_price, latest_nav)
-            rows.append({
-                "code": code,
-                "name": name,
-                "sector": sector,
-                "snapshot_price": snapshot_price,
-                "nav": latest_nav,
-                "premium_rate": round(premium, 6),
-                "premium_pct": round(premium * 100, 4),
-            })
+            rows.append(
+                {
+                    "code": code,
+                    "name": name,
+                    "sector": sector,
+                    "snapshot_price": snapshot_price,
+                    "nav": latest_nav,
+                    "premium_rate": round(premium, 6),
+                    "premium_pct": round(premium * 100, 4),
+                }
+            )
         except Exception as e:
             logger_module.log_collect(
                 task=f"premium_{code}",
@@ -450,7 +404,9 @@ def _resolve_extra_holdings(
         return []
 
     # Build name lookup and merge with parsed codes.
-    name_by_code = dict(zip(enriched_df["code"].astype(str), enriched_df["name"].astype(str)))
+    name_by_code = dict(
+        zip(enriched_df["code"].astype(str), enriched_df["name"].astype(str), strict=False)
+    )
 
     result: list[dict] = []
     seen_codes: set[str] = set()
@@ -480,6 +436,7 @@ def _resolve_extra_holdings(
 
 
 # ── Mode: close ────────────────────────────────────────────────────────────────
+
 
 def run_close_mode(extra: str | None = None) -> dict[str, dict]:
     """Collect end-of-day data: ETF snapshot, margin, north flow, NAV.
@@ -530,9 +487,6 @@ def run_close_mode(extra: str | None = None) -> dict[str, dict]:
         errors,
         suggestion="check north flow data source or use LLM",
     )
-
-    from src.sector_aggregator import aggregate_by_sector, rank_sectors
-    from src.config import SECTOR_MAPPING
 
     # 4. 核心 ETF 净值 — 遍历 ETF_WATCH_LIST
     nav_results = {}
@@ -641,23 +595,65 @@ def _run_tech_indicators_for_holdings(holders: list[dict]) -> pd.DataFrame:
 
             # Use latest values
             latest_price = float(ohlcv_df["close"].iloc[-1])
-            rows.append({
-                "code": code,
-                "name": name,
-                "sector": sector,
-                "price": latest_price,
-                "ma20": round(float(indicators["ma20"].iloc[-1]) if len(indicators["ma20"]) else float("nan"), 4),
-                "ma60": round(float(indicators["ma60"].iloc[-1]) if len(indicators["ma60"]) else float("nan"), 4),
-                "rsi14": round(float(indicators["rsi14"].iloc[-1]) if len(indicators["rsi14"]) else float("nan"), 4),
-                "atr14": round(float(indicators["atr14"].iloc[-1]) if len(indicators["atr14"]) else float("nan"), 4),
-                "boll_upper": round(float(boll["BB_UPPER"].iloc[-1]) if len(boll["BB_UPPER"]) else float("nan"), 4),
-                "boll_mid": round(float(boll["BB_MIDDLE"].iloc[-1]) if len(boll["BB_MIDDLE"]) else float("nan"), 4),
-                "boll_lower": round(float(boll["BB_LOWER"].iloc[-1]) if len(boll["BB_LOWER"]) else float("nan"), 4),
-                "macd_dif": round(float(macd_val["DIF"].iloc[-1]) if len(macd_val["DIF"]) else float("nan"), 4),
-                "macd_dea": round(float(macd_val["DEA"].iloc[-1]) if len(macd_val["DEA"]) else float("nan"), 4),
-                "macd_hist": round(float(macd_val["MACD"].iloc[-1]) if len(macd_val["MACD"]) else float("nan"), 4),
-                "volume_ratio": round(float(vol_ratio.iloc[-1]) if len(vol_ratio) else float("nan"), 4),
-            })
+            rows.append(
+                {
+                    "code": code,
+                    "name": name,
+                    "sector": sector,
+                    "price": latest_price,
+                    "ma20": round(
+                        float(indicators["ma20"].iloc[-1])
+                        if len(indicators["ma20"])
+                        else float("nan"),
+                        4,
+                    ),
+                    "ma60": round(
+                        float(indicators["ma60"].iloc[-1])
+                        if len(indicators["ma60"])
+                        else float("nan"),
+                        4,
+                    ),
+                    "rsi14": round(
+                        float(indicators["rsi14"].iloc[-1])
+                        if len(indicators["rsi14"])
+                        else float("nan"),
+                        4,
+                    ),
+                    "atr14": round(
+                        float(indicators["atr14"].iloc[-1])
+                        if len(indicators["atr14"])
+                        else float("nan"),
+                        4,
+                    ),
+                    "boll_upper": round(
+                        float(boll["BB_UPPER"].iloc[-1]) if len(boll["BB_UPPER"]) else float("nan"),
+                        4,
+                    ),
+                    "boll_mid": round(
+                        float(boll["BB_MIDDLE"].iloc[-1])
+                        if len(boll["BB_MIDDLE"])
+                        else float("nan"),
+                        4,
+                    ),
+                    "boll_lower": round(
+                        float(boll["BB_LOWER"].iloc[-1]) if len(boll["BB_LOWER"]) else float("nan"),
+                        4,
+                    ),
+                    "macd_dif": round(
+                        float(macd_val["DIF"].iloc[-1]) if len(macd_val["DIF"]) else float("nan"), 4
+                    ),
+                    "macd_dea": round(
+                        float(macd_val["DEA"].iloc[-1]) if len(macd_val["DEA"]) else float("nan"), 4
+                    ),
+                    "macd_hist": round(
+                        float(macd_val["MACD"].iloc[-1]) if len(macd_val["MACD"]) else float("nan"),
+                        4,
+                    ),
+                    "volume_ratio": round(
+                        float(vol_ratio.iloc[-1]) if len(vol_ratio) else float("nan"), 4
+                    ),
+                }
+            )
         except Exception as e:
             logger_module.log_collect(
                 task=f"tech_indicator_{code}",
@@ -678,6 +674,7 @@ def _run_tech_indicators_for_user_holdings() -> pd.DataFrame:
 
 
 # ── Mode: morning ──────────────────────────────────────────────────────────────
+
 
 def run_morning_mode(extra: str | None = None) -> dict[str, dict]:
     """Collect pre-market data: gold + macro, index valuations, premium rates.
@@ -855,6 +852,7 @@ def run_morning_mode(extra: str | None = None) -> dict[str, dict]:
 
 # ── CLI ────────────────────────────────────────────────────────────────────────
 
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Daily ETF data collector")
     parser.add_argument(
@@ -888,6 +886,7 @@ def main() -> None:
     # ConfigLoadError → exit non-zero so cron / 皮皮 sees the failure.
     from src.config import init_config
     from src.config_loader import ConfigLoadError
+
     try:
         init_config(args.config)
     except ConfigLoadError as e:
@@ -901,15 +900,17 @@ def main() -> None:
     if args.mode == "close":
         print("Running close mode...")
         result = run_close_mode(extra=args.extra_holdings)
-        success = sum(1 for v in result.values()
-                      if isinstance(v, dict) and v.get("status") == "success")
+        success = sum(
+            1 for v in result.values() if isinstance(v, dict) and v.get("status") == "success"
+        )
         total = len(result)
         print(f"Done: {success}/{total} tasks succeeded.")
     else:
         print("Running morning mode...")
         result = run_morning_mode(extra=args.extra_holdings)
-        success = sum(1 for v in result.values()
-                      if isinstance(v, dict) and v.get("status") == "success")
+        success = sum(
+            1 for v in result.values() if isinstance(v, dict) and v.get("status") == "success"
+        )
         total = len(result)
         print(f"Done: {success}/{total} tasks succeeded.")
 
