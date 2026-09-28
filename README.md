@@ -1,5 +1,7 @@
 # ETF Data Collection System (quant-data)
 
+> ⚠️ **2026-09-28 重构 (de26ff4) 后路径已变更**：采集数据在 `<repo>/data/`，配置在 `<repo>/config/etf_config.json`（repo = `/root/.openclaw/workspace-agents/fullstack-engineer/projects/quant-data`）。旧 secureshare 数据路径已废弃。详见 `docs/DEPLOY.md`。
+
 ## 项目概述
 
 ETF 数据自动化采集系统，支持日/周/月/季度多种频率的基金、指数、宏观数据采集。
@@ -70,7 +72,7 @@ podman-compose up -d
 ## 数据目录结构
 
 ```
-/root/secureshare/files/ETF轮动分析框架/data/
+/root/.openclaw/workspace-agents/fullstack-engineer/projects/quant-data/data/
 ├── daily/                  # 日频数据
 │   ├── etf_snapshot_20260520.csv
 │   ├── nav_510300_20260520.csv

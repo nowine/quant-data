@@ -1,5 +1,7 @@
 # Agent Manual — ETF 数据采集框架
 
+> ⚠️ **2026-09-28 重构 (de26ff4) 后路径已变更**：采集数据在 `<repo>/data/`，配置在 `<repo>/config/etf_config.json`（repo = `/root/.openclaw/workspace-agents/fullstack-engineer/projects/quant-data`）。旧 secureshare 数据路径已废弃。详见 `docs/DEPLOY.md`。
+
 > 本手册面向 **调用本框架的 AI Agent**，说明如何正确使用已采集的数据，以及如何扩展新的数据源。
 > 面向用户：需要 LLM 分析结果、报告输出的 AI Agent。
 
@@ -85,7 +87,7 @@ else:
 
 ## 2. 数据文件路径速查
 
-所有数据存放在：`/root/secureshare/files/ETF轮动分析框架/data/`
+所有数据存放在：`/root/.openclaw/workspace-agents/fullstack-engineer/projects/quant-data/data/`
 
 ```
 data/
@@ -597,7 +599,7 @@ ETF 代码需要加交易所前缀：
 
 检查日志：
 ```bash
-cat /root/secureshare/files/ETF轮动分析框架/data/logs/collect_20260521.csv
+cat /root/.openclaw/workspace-agents/fullstack-engineer/projects/quant-data/data/logs/collect_20260521.csv
 ```
 
 ---

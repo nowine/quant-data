@@ -1,5 +1,7 @@
 # `etf_config.json` 操作手册
 
+> ⚠️ **2026-09-28 重构 (de26ff4) 后路径已变更**：采集数据在 `<repo>/data/`，配置在 `<repo>/config/etf_config.json`（repo = `/root/.openclaw/workspace-agents/fullstack-engineer/projects/quant-data`）。旧 secureshare 数据路径已废弃。详见 `docs/DEPLOY.md`。
+
 > **给**: 皮皮（data-collector agent）和任何想调整 ETF 监控清单的人
 > **不是给**: 想了解 ADR 决策背景的人 → 看 [`adr-004-externalize-config.md`](adr-004-externalize-config.md)
 > **目标**: 10 分钟搞清楚怎么改、怎么验证、哪里会错
@@ -16,7 +18,7 @@
 
 **约定俗成位置**：
 ```
-/root/secureshare/files/ETF轮动分析框架/config/etf_config.json
+/root/.openclaw/workspace-agents/fullstack-engineer/projects/quant-data/config/etf_config.json
 ```
 
 为什么放这：跟 `data/` 并列，都属于 ETF 轮动分析框架的数据根目录。如果你想放别处也行 —— 路径是 collector 的 `--config` 参数，**调用方定**。
@@ -28,7 +30,7 @@
 第一次部署：
 ```bash
 cp projects/quant-data/examples/etf_config.example.json \
-   /root/secureshare/files/ETF轮动分析框架/config/etf_config.json
+   /root/.openclaw/workspace-agents/fullstack-engineer/projects/quant-data/config/etf_config.json
 ```
 
 `examples/etf_config.example.json` 是权威种子文件（每次 ADR-004 改动都会同步更新）。
@@ -98,7 +100,7 @@ cp projects/quant-data/examples/etf_config.example.json \
 ```bash
 cd /root/.openclaw/workspace-agents/fullstack-engineer/projects/quant-data
 export PYTHONPATH=.
-python3 src/collector_weekly.py --config /root/secureshare/files/ETF轮动分析框架/config/etf_config.json
+python3 src/collector_weekly.py --config /root/.openclaw/workspace-agents/fullstack-engineer/projects/quant-data/config/etf_config.json
 ```
 
 为什么 weekly：daily 太重（采集全市场），monthly 调多个远程 API，quarterly 只在特定日跑。**weekly 跑 1 次 = 22 + 5 + 7 ≈ 34 次远程调用，2 分钟内出结果**，且任何交易日都能跑（虽然周一才有完整数据，其他日只是 date guard）。
@@ -122,7 +124,7 @@ cd /root/.openclaw/workspace-agents/fullstack-engineer/projects/quant-data
 export PYTHONPATH=.
 python3 -c "
 from src.config import init_config, ETF_WATCH_LIST, USER_HOLDINGS, INDEX_WATCH_LIST, SECTOR_MAPPING
-init_config('/root/secureshare/files/ETF轮动分析框架/config/etf_config.json')
+init_config('/root/.openclaw/workspace-agents/fullstack-engineer/projects/quant-data/config/etf_config.json')
 print(f'etf_watch_list: {len(ETF_WATCH_LIST)}')
 print(f'user_holdings: {len(USER_HOLDINGS)}')
 print(f'index_watch_list: {len(INDEX_WATCH_LIST)}')
