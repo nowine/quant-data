@@ -283,6 +283,12 @@ def _run_premium_rate_for_holdings(holders: list[dict]) -> pd.DataFrame:
         if snapshot_row.empty:
             continue
         snapshot_price = float(snapshot_row.iloc[0]["最新价"])
+        raw_trade_date = (
+            snapshot_row.iloc[0]["最新-交易日"]
+            if "最新-交易日" in snapshot_row.columns
+            else ""
+        )
+        snap_trade_date = "" if pd.isna(raw_trade_date) else str(raw_trade_date).strip()
 
         # nav: get from akshare_fund_client
         try:
@@ -291,6 +297,26 @@ def _run_premium_rate_for_holdings(holders: list[dict]) -> pd.DataFrame:
             if not items:
                 continue
             latest_nav = float(items[0]["DWJZ"])
+            # Date-alignment guard (2026-09-29): the THS snapshot source can
+            # lag (最新-交易日 stuck days back) while NAV is current; a premium
+            # computed then mixes an old price with a new NAV and fabricates
+            # a rate (observed: 510300 +2.25% artifact). Skip when both dates
+            # are present and disagree; rows without dates keep legacy behavior.
+            nav_date = str(items[0].get("FSRQ", "") or "").strip()
+            if snap_trade_date and nav_date and snap_trade_date != nav_date:
+                logger_module.log_collect(
+                    task=f"premium_{code}",
+                    source="nav_history",
+                    status="degraded",
+                    rows=0,
+                    elapsed_sec=0,
+                    message=(
+                        f"premium date guard: snapshot trade date {snap_trade_date} "
+                        f"!= NAV date {nav_date}; skip premium for {code} "
+                        "(stale snapshot source)"
+                    ),
+                )
+                continue
             premium = calc_premium_rate(snapshot_price, latest_nav)
             rows.append(
                 {
@@ -853,6 +879,45 @@ def run_morning_mode(extra: str | None = None) -> dict[str, dict]:
 # ── CLI ────────────────────────────────────────────────────────────────────────
 
 
+def _summarize_result(result: dict) -> tuple[int, int, dict[str, int]]:
+    """Summarize a run_*_mode result into (done, total, counts-by-status).
+
+    Counting rules (fixed 2026-09-29, see tests/test_done_counting_and_premium_guard.py):
+    - ``errors`` / ``errors_extra`` lists are not tasks (excluded from total).
+    - dict-valued entries (e.g. ``nav``) expand into their leaf tasks.
+    - ``skipped`` (cache_hit: today's file already exists) counts as done —
+      the data IS available; the old code counted only "success", turning a
+      fully cache-hit run into a misleading "Done: 0/8".
+    """
+    counts: dict[str, int] = {}
+
+    def _bump(status: str) -> None:
+        counts[status] = counts.get(status, 0) + 1
+
+    def _walk(value) -> None:
+        if isinstance(value, dict):
+            if "status" in value:
+                _bump(str(value.get("status", "unknown")))
+            else:
+                for v in value.values():
+                    _walk(v)
+
+    for key, value in result.items():
+        if key in ("errors", "errors_extra"):
+            continue
+        _walk(value)
+
+    total = sum(counts.values())
+    done = counts.get("success", 0) + counts.get("skipped", 0)
+    return done, total, counts
+
+
+def _format_counts(counts: dict[str, int]) -> str:
+    """Human-readable status breakdown, e.g. "2 skipped, 1 success, 1 error"."""
+    parts = [f"{n} {s}" for s, n in sorted(counts.items()) if n]
+    return ", ".join(parts) if parts else "no tasks"
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Daily ETF data collector")
     parser.add_argument(
@@ -900,19 +965,12 @@ def main() -> None:
     if args.mode == "close":
         print("Running close mode...")
         result = run_close_mode(extra=args.extra_holdings)
-        success = sum(
-            1 for v in result.values() if isinstance(v, dict) and v.get("status") == "success"
-        )
-        total = len(result)
-        print(f"Done: {success}/{total} tasks succeeded.")
     else:
         print("Running morning mode...")
         result = run_morning_mode(extra=args.extra_holdings)
-        success = sum(
-            1 for v in result.values() if isinstance(v, dict) and v.get("status") == "success"
-        )
-        total = len(result)
-        print(f"Done: {success}/{total} tasks succeeded.")
+
+    done, total, counts = _summarize_result(result)
+    print(f"Done: {done}/{total} tasks succeeded ({_format_counts(counts)}).")
 
     # Always print errors so agent can see them
     if result.get("errors"):
