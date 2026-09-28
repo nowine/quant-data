@@ -41,12 +41,7 @@ htmlcov/
 *.swo
 
 # Data and logs (local only, not committed)
-data/logs/
-data/daily/
-data/weekly/
-data/monthly/
-data/quarterly/
-data/cache/
+data/
 data/validate_failed/
 
 # Environment
